@@ -1,0 +1,6 @@
+{
+  "name": "The Accountant's Veil",
+  "description": "ม่านมายา พนักงานบัญชีปริศนา — แนวดราม่า เข้มข้น: สวมบทบาทเป็นนักสืบบัญชี เพื่อสืบสวนและซักฟอกพนักงานบัญชี K.Min ผู้ต้องสงสัยทุจริตยักยอกเงิน",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
