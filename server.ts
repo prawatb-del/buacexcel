@@ -318,8 +318,7 @@ app.post("/api/chat", async (req, res) => {
       const responseText = response.text || "ไม่ตอบสนอง";
       reply = cleanKMinSpeech(responseText);
     } catch (apiError: any) {
-      console.warn("Gemini Chat API Error (falling back to simulated dialogue handler):", apiError.message || apiError);
-      
+      // Quietly fall back to simulated dialogue handler
       const historyLength = history.length;
       reply = generateKMinFallbackDialogue(lowerUserMsg, lastUserMsg, studentId, historyLength);
     }
@@ -329,8 +328,7 @@ app.post("/api/chat", async (req, res) => {
       stressIncrease
     });
   } catch (error: any) {
-    console.error("Gemini Chat API Error:", error);
-    res.status(550).json({ error: error.message || "Something went wrong" });
+    res.status(500).json({ error: "Something went wrong" });
   }
 });
 
@@ -430,8 +428,7 @@ app.post("/api/grade", async (req, res) => {
         formulaComment = parsed.review;
       }
     } catch (apiError) {
-      console.warn("Gemini grading failed or is forbidden (performing reliable regex matching):", apiError);
-      // Dual deterministic regex matcher fallback to protect system from 403 API key issues
+      // Quietly use dual deterministic regex matcher fallback to protect system from 403 API key issues
       const textLower = String(writtenReport).toLowerCase();
       const matchCell = textLower.includes(correctCellKeyword.toLowerCase());
       const matchG16 = textLower.includes("g16") || textLower.includes("สูตร") || textLower.includes("sum");
@@ -454,25 +451,53 @@ app.post("/api/grade", async (req, res) => {
     // Save student submission to the JSON database
     try {
       const list = readSubmissions();
-      // Remove any previously recorded session or placeholder for this specific student to avoid duplication
-      const filteredList = list.filter((sub: any) => sub.studentId !== studentId);
-
-      const submissionRecord = {
-        id: `${studentId}-${Date.now()}`,
-        studentId,
-        studentEmail,
-        qAmount,
-        qMethod,
-        writtenReport,
-        score: finalScore,
-        moneyReview: amountComment,
-        behaviorReview: behaviorComment,
-        formulaReview: formulaComment,
-        timestamp: new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }),
-        instructorFeedback: "", // Default empty instructor feedback to be updated by admin later
-      };
-      filteredList.push(submissionRecord);
-      saveSubmissions(filteredList);
+      // Find existing record by studentId
+      const existing = list.find((sub: any) => sub.studentId === studentId);
+      
+      if (existing) {
+        // Update keeping any instructor feedback already given
+        existing.qAmount = qAmount;
+        existing.qMethod = qMethod;
+        existing.writtenReport = writtenReport;
+        
+        // If the instructor has already given a custom adjusted score, preserve or update it
+        if (existing.instructorFeedback) {
+          // Keep the existing score if instructor adjusted it, or calculate if not
+          if (existing.score === null || existing.score === undefined) {
+            existing.score = finalScore;
+          }
+        } else {
+          existing.score = finalScore;
+        }
+        
+        existing.moneyReview = amountComment;
+        existing.behaviorReview = behaviorComment;
+        existing.formulaReview = formulaComment;
+        existing.isPlaceholder = false;
+        if (existing.showReviews === undefined) {
+          existing.showReviews = false;
+        }
+        existing.timestamp = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
+      } else {
+        const submissionRecord = {
+          id: studentId, // Stable central ID
+          studentId,
+          studentEmail,
+          qAmount,
+          qMethod,
+          writtenReport,
+          score: finalScore,
+          moneyReview: amountComment,
+          behaviorReview: behaviorComment,
+          formulaReview: formulaComment,
+          isPlaceholder: false,
+          showReviews: false,
+          timestamp: new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }),
+          instructorFeedback: "", // Default empty instructor feedback to be updated by admin later
+        };
+        list.push(submissionRecord);
+      }
+      saveSubmissions(list);
     } catch (saveErr) {
       console.error("Failed to save student submission record:", saveErr);
     }
@@ -482,7 +507,8 @@ app.post("/api/grade", async (req, res) => {
       maxScore: 100,
       moneyReview: amountComment,
       behaviorReview: behaviorComment,
-      formulaReview: formulaComment
+      formulaReview: formulaComment,
+      instructorFeedback: ""
     });
 
   } catch (error: any) {
@@ -504,7 +530,7 @@ app.post("/api/register-login", (req, res) => {
 
     if (!existing) {
       const placeholderRecord = {
-        id: `${studentId}-placeholder`,
+        id: studentId, // Stable central ID
         studentId,
         studentEmail,
         qAmount: "",
@@ -512,6 +538,7 @@ app.post("/api/register-login", (req, res) => {
         writtenReport: "ยังไม่ได้ระบยุยอดส่งตัวจริง",
         score: null, // null score signals logged-in only
         isPlaceholder: true,
+        showReviews: false,
         timestamp: new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" }),
         instructorFeedback: "",
       };
@@ -544,20 +571,28 @@ app.get("/api/student/submission", (req, res) => {
   }
 });
 
-// Save admin's custom Question 3 feedback
+// Save admin's custom Question 3 feedback & adjusted score
 app.post("/api/admin/feedback", (req, res) => {
   try {
-    const { id, instructorFeedback } = req.body;
+    const { id, instructorFeedback, instructorScore, showReviews } = req.body;
     if (!id) {
       return res.status(400).json({ error: "ไม่พบรหัสข้อสอบ/การส่งงานที่ต้องการติชม" });
     }
 
     const list = readSubmissions();
-    const found = list.find((sub: any) => sub.id === id);
+    const found = list.find((sub: any) => sub.id === id || sub.studentId === id);
     if (found) {
-      found.instructorFeedback = instructorFeedback || "";
+      if (instructorFeedback !== undefined) {
+        found.instructorFeedback = instructorFeedback || "";
+      }
+      if (instructorScore !== undefined && instructorScore !== null && instructorScore !== "") {
+        found.score = Number(instructorScore);
+      }
+      if (showReviews !== undefined) {
+        found.showReviews = !!showReviews;
+      }
       saveSubmissions(list);
-      res.json({ success: true, message: "บันทึกคำอธิบายเชิงประจักษ์ส่งกลับนักศึกษาสำเร็จแล้ว" });
+      res.json({ success: true, message: "บันทึกคำอธิบายเชิงประจักษ์ สิทธิ์การเผยแพร่ และคะแนนสำเร็จแล้ว" });
     } else {
       res.status(404).json({ error: "ไม่พบข้อมูลประวัติการทำรายงานของรหัสที่ระบุ" });
     }
@@ -567,6 +602,72 @@ app.post("/api/admin/feedback", (req, res) => {
 });
 
 // Admin Submissions Fetch & Wipe APIs
+app.post("/api/admin/toggle-reviews", (req, res) => {
+  try {
+    const { id, showReviews } = req.body;
+    if (!id) {
+      return res.status(400).json({ error: "ไม่พบรหัสข้อสอบ/การส่งงานที่ต้องการอัพเดทสิทธิ์" });
+    }
+
+    const targetId = String(id).trim().toLowerCase();
+    const list = readSubmissions();
+    const found = list.find((sub: any) => {
+      const subId = sub.id ? String(sub.id).trim().toLowerCase() : "";
+      const subStudentId = sub.studentId ? String(sub.studentId).trim().toLowerCase() : "";
+      return subId === targetId || subStudentId === targetId;
+    });
+
+    if (found) {
+      found.showReviews = !!showReviews;
+      saveSubmissions(list);
+      res.json({ success: true, message: "ปรับสิทธิ์สำเร็จแล้ว", showReviews: found.showReviews });
+    } else {
+      res.status(404).json({ error: "ไม่พบข้อมูลประวัติการทำรายงานของรหัสที่ระบุ" });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/reset-submission", (req, res) => {
+  try {
+    const { id } = req.body;
+    if (!id) {
+      return res.status(400).json({ error: "ไม่พบรหัสข้อสอบที่ต้องการล้างข้อมูล" });
+    }
+
+    const targetId = String(id).trim().toLowerCase();
+    const list = readSubmissions();
+    const found = list.find((sub: any) => {
+      const subId = sub.id ? String(sub.id).trim().toLowerCase() : "";
+      const subStudentId = sub.studentId ? String(sub.studentId).trim().toLowerCase() : "";
+      return subId === targetId || subStudentId === targetId;
+    });
+
+    if (found) {
+      // Keep student identity, but completely clean/reset their answers and scores
+      found.qAmount = "";
+      found.qMethod = "";
+      found.writtenReport = "ยังไม่ได้ระบยุยอดส่งตัวจริง";
+      found.score = null;
+      found.moneyReview = "";
+      found.behaviorReview = "";
+      found.formulaReview = "";
+      found.isPlaceholder = true;
+      found.showReviews = false;
+      found.instructorFeedback = "";
+      found.timestamp = new Date().toLocaleString("th-TH", { timeZone: "Asia/Bangkok" });
+
+      saveSubmissions(list);
+      res.json({ success: true, message: `🧹 ล้างข้อมูลคำเสนอผลและผลคะแนนของรหัส ${id} เรียบร้อยแล้ว สิทธิ์ถูกรีเซ็ตสำเร็จ!` });
+    } else {
+      res.status(404).json({ error: "ไม่พบข้อมูลรหัสประวัติดังกล่าวในตารางฐานข้อมูล" });
+    }
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.get("/api/admin/submissions", (req, res) => {
   try {
     const list = readSubmissions();
@@ -579,10 +680,19 @@ app.get("/api/admin/submissions", (req, res) => {
 app.delete("/api/admin/submissions/:id", (req, res) => {
   try {
     const { id } = req.params;
+    if (!id) {
+      return res.status(400).json({ error: "กรุณาระบุไอดีที่ต้องการลบ" });
+    }
+    const targetId = String(id).trim().toLowerCase();
     let list = readSubmissions();
-    list = list.filter((sub: any) => sub.id !== id);
+    const originalLength = list.length;
+    list = list.filter((sub: any) => {
+      const subId = sub.id ? String(sub.id).trim().toLowerCase() : "";
+      const subStudentId = sub.studentId ? String(sub.studentId).trim().toLowerCase() : "";
+      return subId !== targetId && subStudentId !== targetId;
+    });
     saveSubmissions(list);
-    res.json({ success: true, message: `ลบข้อมูลรหัสนักศึกษาสำเร็จ` });
+    res.json({ success: true, message: `ลบข้อมูลรหัสนักศึกษาสำเร็จ (ลบออกแล้ว ${originalLength - list.length} รายการ)` });
   } catch (err: any) {
     res.status(500).json({ error: err.message || "Failed to delete submission" });
   }

@@ -30,6 +30,14 @@ import EmployeeProfile from "./components/EmployeeProfile";
 import CaseReport from "./components/CaseReport";
 import { generateCaseFromId } from "./utils";
 
+const PRESET_PROMPTS = [
+  { label: "❓ สวัสดี K.Min ทางเราขอสอบถามแนวคิดการจัดทำข้อมูลบัญชีรอบนี้หน่อย", text: "สวัสดี K.Min ทางเราขอสอบถามแนวคิดการจัดทำข้อมูลบัญชีรอบนี้หน่อย" },
+  { label: "📊 ทำไมช่อง Credit Total G16 ถึงใช้สูตรบวกข้ามพิกัด?", text: "ทำไมสูตรบวกยอดสะสม Credit Total ในเซลล์ G16 ถึงบวกเว้นข้ามแถวไป ไม่คลุมทั้งตาราง?" },
+  { label: "💳 รายการโอนเงิน 1,000,000 บาท ให้ M.N. Accounting Solution คือค่าบริการอะไร?", text: "รายการจ่ายเงิน 1,000,000 บาท ในวันที่ 15 ธันวาคม 2025 ให้พอร์ต M.N. Accounting Solution คือค่าใช้จ่ายอะไรและมีสัญญาแนบไหม?" },
+  { label: "🔍 บัญชีโอนค่าที่ปรึกษา '022-2-21954-3' ทำไมไปตรงพิกัดบัญชีเงินเดือนพนักงานสะสม?", text: "เราตรวจสอบพิกัดเลขที่บัญชี 022-2-21954-3 ของบริษัทที่ปรึกษาทำไมไปตรงกับเลขที่บัญชีเงินเดือนพนักงานของคุณเองแบบนี้อธิบายยังไง?" },
+  { label: "💸 ยอดรวมเงินสดใน Bank Statement ไม่ปรกติตรงพิกัดผลต่างหายไปล้านนึง ใช่ฝีมือเรายักยอกไหม?", text: "เงินสุทธิโอนขาดดุลใน Cash Book หายไปล้านนึงตรงกับยอดโอนไป บัญชี เอ็ม.เอ็น. แอคเคาท์ติ้ง โซลูชั่น นี่คือเจตนาทุจริตยักยอกใช่หรือไม่?" },
+];
+
 export default function App() {
   // Active Navigation Tab
   const [activeTab, setActiveTab] = useState<ActiveTab>("instructions");
@@ -174,31 +182,40 @@ export default function App() {
   };
 
   const [editingFeedback, setEditingFeedback] = useState<{ [subId: string]: string }>({});
+  const [editingScores, setEditingScores] = useState<{ [subId: string]: string }>({});
 
   useEffect(() => {
     if (adminSubmissions && adminSubmissions.length > 0) {
       const initFeedback: { [subId: string]: string } = {};
+      const initScores: { [subId: string]: string } = {};
       adminSubmissions.forEach((sub) => {
         initFeedback[sub.id] = sub.instructorFeedback || "";
+        initScores[sub.id] = sub.score !== null && sub.score !== undefined ? String(sub.score) : "";
       });
       setEditingFeedback((prev) => ({ ...initFeedback, ...prev }));
+      setEditingScores((prev) => ({ ...initScores, ...prev }));
     }
   }, [adminSubmissions]);
 
   const handleSendFeedback = async (id: string) => {
     const feedbackText = editingFeedback[id] || "";
+    const scoreVal = editingScores[id];
     try {
       const res = await fetch("/api/admin/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, instructorFeedback: feedbackText }),
+        body: JSON.stringify({ 
+          id, 
+          instructorFeedback: feedbackText,
+          instructorScore: scoreVal !== "" && scoreVal !== null && scoreVal !== undefined ? Number(scoreVal) : undefined
+        }),
       });
       if (res.ok) {
-        alert("บันทึกคำแนะนำ (Feedback) และนำส่งต่อไปยังนักศึกษาสำเร็จเรียบร้อยแล้ว!");
+        alert("บันทึกคำแนะนำ (Feedback) และคะแนนส่งปรับปรุงเรียบร้อยแล้ว!");
         fetchAdminSubmissions();
       } else {
         const errData = await res.json();
-        alert("ไม่สามารถนำส่งข้อความติชมยื่นกลับ: " + (errData.error || ""));
+        alert("ไม่สามารถนำส่งข้อมูลป้อนกลับ: " + (errData.error || ""));
       }
     } catch (err) {
       console.error(err);
@@ -207,7 +224,7 @@ export default function App() {
   };
 
   const handleDeleteSubmission = async (id: string) => {
-    if (!confirm("คุณต้องการลบระเบียนประวัติการส่งงานของนักศึกษาท่านนี้อย่างถาวรใช่ไหม?")) return;
+   
     try {
       const res = await fetch(`/api/admin/submissions/${id}`, { method: "DELETE" });
       if (res.ok) {
@@ -223,7 +240,7 @@ export default function App() {
   };
 
   const handleWipeAllSubmissions = async () => {
-    if (!confirm("🚨 คำเตือนรุนแรง! คุณต้องการล้างพอร์ตประวัติและทำลายฐานข้อมูลส่งการบ้านทั้งหมดจากเซิร์ฟเวอร์ใช่หรือไม่? ข้อมูลทั้งหมดจะสูญหายอย่างถาวร!")) return;
+    
     try {
       const res = await fetch("/api/admin/submissions", { method: "DELETE" });
       if (res.ok) {
@@ -235,64 +252,366 @@ export default function App() {
     }
   };
 
+  const handleInstructorClick = () => {
+    const nextClicks = instructorClicks + 1;
+    setInstructorClicks(nextClicks);
+    if (nextClicks >= 5) {
+      setShowAdminLogin(true);
+      setInstructorClicks(0);
+    }
+  };
+
   const downloadCSV = () => {
-    if (adminSubmissions.length === 0) {
-      alert("ไม่มีวิทยานิพจน์บันทึกรายการตรวจสอบของนักศึกษาอยู่ในระบบให้ดาวน์โหลดขณะนี้");
+    if (!adminSubmissions || adminSubmissions.length === 0) {
+      alert("ไม่มีข้อมูลที่จะดาวน์โหลด");
       return;
     }
-    
-    // MS Excel Thai language support UTF-8 BOM
-    let csvContent = "\uFEFF";
-    csvContent += "ลำดับ,รหัสนักศึกษา,อีเมลนักศึกษา,ยอดเงินตอบฟ้องทุจริต,สมมติฐานพฤติกรรม,วิเคราะห์สูตรวิชาการ,คะแนนรวม,วันเวลาจัดส่งรายงาน\n";
-    
-    adminSubmissions.forEach((sub, idx) => {
-      const cleanReport = `"${(sub.writtenReport || "").replace(/"/g, '""').replace(/\n/g, " ")}"`;
-      const row = [
-        idx + 1,
-        sub.studentId,
-        sub.studentEmail,
-        sub.qAmount,
-        sub.qMethod,
-        cleanReport,
-        sub.score,
-        sub.timestamp
-      ].join(",");
-      csvContent += row + "\n";
-    });
-
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
+    const headers = ["ID", "Student ID", "Student Email", "Submitted Time", "qAmount", "qMethod", "Score", "Written Report", "Feedback"];
+    const rows = adminSubmissions.map((sub, idx) => [
+      sub.id || idx + 1,
+      sub.studentId || "",
+      sub.studentEmail || "",
+      sub.timestamp || "",
+      sub.qAmount || "0",
+      sub.qMethod || "",
+      sub.score !== undefined && sub.score !== null ? sub.score : "N/A",
+      `"${(sub.writtenReport || "").replace(/"/g, '""')}"`,
+      `"${(sub.instructorFeedback || "").replace(/"/g, '""')}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" 
+      + [headers.join(","), ...rows.map(e => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `AC432_Forensic_Grading_Report_${Date.now()}.csv`);
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `forensic_submissions_${studentId || "admin"}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
   };
 
-  const handleInstructorClick = () => {
-    setInstructorClicks(prev => {
-      const next = prev + 1;
-      if (next >= 5) {
-        setShowAdminLogin(true);
-        return 0; // Reset count
-      }
-      return next;
-    });
-  };
-
-  // Game Interrogation & Auditing States
+  const renderAdminModal = () => {
+    if (!showAdminLogin) return null;
+    return (
+      <div id="admin-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-fadeIn overflow-y-auto">
+              <div className={`bg-[#1e293b] border border-slate-750 p-6 rounded-2xl w-full transition-all duration-300 shadow-2xl ${isAdminAuthenticated ? "max-w-5xl" : "max-w-sm"} space-y-4`}>
+                <div className="flex items-center justify-between border-b border-slate-700/85 pb-3">
+                  <div className="flex items-center gap-2 text-sky-400 font-mono font-bold text-sm">
+                    <Sparkles className="w-5 h-5 text-[#38bdf8]" />
+                    <span>BU PORTAL: CENTRAL AUDITING CONTROL</span>
+                  </div>
+                  {isAdminAuthenticated && (
+                    <button
+                      onClick={() => {
+                        setIsAdminAuthenticated(false);
+                        setShowAdminLogin(false);
+                        setAdminPasswordInput("");
+                      }}
+                      className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white px-2.5 py-1 rounded text-xs transition font-mono border border-slate-700 cursor-pointer"
+                    >
+                      LOGOUT ADMIN
+                    </button>
+                  )}
+                </div>
+                
+                {!isAdminAuthenticated ? (
+                  <div className="space-y-3.5">
+                    <p className="text-xs text-slate-300 leading-relaxed font-sans text-left">
+                      กรุณากรอกรหัสผ่านบอร์ดผู้ฝึกสอนจำลอง เพื่อเข้าทบทวนผลคะแนนและประวัติการส่งงานของนักศึกษา (BU ADMIN):
+                    </p>
+                    <input
+                      type="password"
+                      placeholder="ป้อนรหัสผ่าน"
+                      value={adminPasswordInput}
+                      onChange={(e) => setAdminPasswordInput(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-755 p-2.5 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 text-white text-center font-mono placeholder-slate-600"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          if (adminPasswordInput === "BUADMIN2024") {
+                            setIsAdminAuthenticated(true);
+                           } else {
+                            alert("รหัสผ่านไม่ถูกต้อง!");
+                          }
+                        }
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAdminLogin(false);
+                          setAdminPasswordInput("");
+                        }}
+                        className="flex-grow bg-slate-800 hover:bg-slate-700 text-slate-400 py-2.5 rounded-lg text-xs transition duration-200 cursor-pointer text-center font-sans border border-slate-700"
+                      >
+                        ยกเลิก
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (adminPasswordInput === "BUADMIN2024") {
+                            setIsAdminAuthenticated(true);
+                          } else {
+                            alert("รหัสผ่านไม่ถูกต้อง!");
+                          }
+                        }}
+                        className="flex-grow bg-[#38bdf8] hover:bg-[#7dd3fc] text-[#0f172a] font-bold py-2.5 rounded-lg text-xs transition duration-200 cursor-pointer text-center font-sans"
+                      >
+                        ยืนยัน
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-sky-950/20 border border-sky-900/40 p-4 rounded-xl text-xs text-sky-200 font-sans leading-relaxed">
+                      <div>
+                        🔓 ยินดีต้อนรับบอร์ดบริหาร! แผงควบคุมแสดงประวัติส่งรายงานผลการวิเคราะห์เรียงตามรหัสนักศึกษาและคะแนนแบบ Real-time
+                      </div>
+                      <div className="flex gap-2 shrink-0">
+                        <button
+                          onClick={downloadCSV}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-slate-100 px-3 py-1.5 rounded-lg font-bold font-sans transition-all text-[11px] flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
+                        >
+                          <span>📥 ดาวน์โหลดผล (All CSV)</span>
+                        </button>
+                        <button
+                          onClick={handleWipeAllSubmissions}
+                          className="bg-rose-900 hover:bg-rose-850 border border-rose-900/50 text-rose-300 hover:text-white px-3 py-1.5 rounded-lg font-bold font-sans transition-all text-[11px] flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
+                        >
+                          <span>🚨 ล้างสารบบทั้งหมด</span>
+                        </button>
+                      </div>
+                    </div>
+    
+                    {/* Submissions Spreadsheet Table Grid */}
+                    {/* Submissions Spreadsheet Table Grid */}
+                    <div className="border border-slate-750 rounded-xl overflow-hidden bg-slate-900">
+                      <div className="overflow-x-auto max-h-[420px]">
+                        <table className="w-full text-left border-collapse font-sans text-xs">
+                          <thead className="bg-[#0f172a] text-slate-300 font-bold sticky top-0 border-b border-slate-700">
+                            <tr>
+                              <th className="p-3">ลำดับ</th>
+                              <th className="p-3">ข้อมูลนักศึกษา</th>
+                              <th className="p-3">สถานะส่งงาน</th>
+                              <th className="p-3">คำตอบของนักศึกษา (ข้อ 1 & 2)</th>
+                              <th className="p-3 text-emerald-400">เฉลยตัวจริงของกรณีนี้</th>
+                              <th className="p-3 text-sky-400">คำอธิบายวิธีคำนวณเบื้องหลัง</th>
+                              <th className="p-3 text-center">คะแนนรวม</th>
+                              <th className="p-3">คำตอบข้อ 3 (เชิงประจักษ์)</th>
+                              <th className="p-3">ให้คำติชม / ส่งกลับ Feedback (ข้อ 3)</th>
+                              <th className="p-3 text-center">สิทธิ์ควบคุม</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {isAdminLoading ? (
+                              <tr>
+                                <td colSpan={10} className="p-8 text-center text-slate-500 font-mono">
+                                  กำลังเรียกข้อมูลดึงประวัติงานจากเซิร์ฟเวอร์...
+                                </td>
+                              </tr>
+                            ) : adminSubmissions.length === 0 ? (
+                              <tr>
+                                <td colSpan={10} className="p-8 text-center text-slate-500 italic">
+                                  ไม่พบบันทึกรหัสการยื่นรายงานในสารบบปัจจุบัน
+                                </td>
+                              </tr>
+                            ) : (
+                              adminSubmissions.map((sub, idx) => {
+                                const correct = getCorrectAnswersForId(sub.studentId);
+                                const isUnsubmitted = sub.isPlaceholder || sub.score === null || sub.score === undefined;
+                                return (
+                                  <tr key={sub.id || idx} className="border-b border-slate-800 hover:bg-slate-800/40 transition-colors">
+                                    <td className="p-3 font-mono text-slate-505">{idx + 1}</td>
+                                    <td className="p-3 font-mono text-xs">
+                                      <div className="font-bold text-[#38bdf8] font-sans">{sub.studentId}</div>
+                                      <div className="text-[10px] text-slate-400">{sub.studentEmail}</div>
+                                      <div className="text-[9px] text-slate-500 font-sans mt-0.5">{sub.timestamp}</div>
+                                    </td>
+                                    <td className="p-3">
+                                      {isUnsubmitted ? (
+                                        <span className="px-2 py-0.5 bg-amber-955/40 text-amber-400 border border-amber-900/60 text-[10px] rounded">
+                                          🔴 เพียงเข้าระบบ (ยังไม่ส่ง)
+                                        </span>
+                                      ) : (
+                                        <span className="px-2 py-0.5 bg-emerald-950/70 text-emerald-400 text-[10px] rounded border border-emerald-900/40">
+                                          🟢 ยื่นรายงานเสร็จสิ้น
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-3 leading-relaxed">
+                                      {isUnsubmitted ? (
+                                        <span className="text-slate-505 italic text-[11px]">รอการทบทวนแก้ไข...</span>
+                                      ) : (
+                                        <div className="space-y-0.5 max-w-[180px]">
+                                          <div>
+                                            <span className="text-slate-505 text-[10px]">เงินตอบ: </span>
+                                            <span className="font-mono text-amber-400 font-bold">{parseInt(sub.qAmount || "0").toLocaleString()} บาท</span>
+                                          </div>
+                                          <div>
+                                            <span className="text-slate-505 text-[10px]">พฤติกรรม: </span>
+                                            <span className="text-slate-300 font-sans font-medium text-[10.5px] block truncate" title={sub.qMethod || ""}>{sub.qMethod || "N/A"}</span>
+                                          </div>
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="p-3 bg-emerald-950/10 leading-relaxed">
+                                      <div className="space-y-1 max-w-[200px]">
+                                        <div>
+                                          <span className="text-emerald-500/80 text-[10px] block font-sans">ยอดโกงจริง: </span>
+                                          <span className="font-mono text-[#10b981] font-bold text-xs">{correct.correctAmount.toLocaleString()} บาท</span>
+                                        </div>
+                                        <div>
+                                          <span className="text-emerald-500/80 text-[10px] block font-sans">คำเฉลยพฤติกรรม: </span>
+                                          <span className="text-emerald-300 text-[10px] block font-sans font-medium leading-normal">{correct.correctBehaviorLabel}</span>
+                                        </div>
+                                      </div>
+                                    </td>
+                                    <td className="p-3">
+                                      <div className="bg-[#0c101b] border border-slate-800 p-2 rounded text-[10px] text-sky-400 font-mono leading-relaxed whitespace-pre-line max-w-[250px]">
+                                        {correct.calculationExplanation}
+                                      </div>
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      {isUnsubmitted ? (
+                                        <span className="font-mono text-slate-500 text-[10px]">รอส่ง</span>
+                                      ) : (
+                                        <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold ${
+                                          (sub.score || 0) >= 80 
+                                            ? "bg-emerald-950 text-emerald-400 border border-emerald-900" 
+                                            : (sub.score || 0) >= 50
+                                              ? "bg-amber-955/40 text-amber-400 border border-amber-900/60"
+                                              : "bg-rose-955/40 text-rose-400 border border-rose-900/60"
+                                        }`}>
+                                          {sub.score} / 100
+                                        </span>
+                                      )}
+                                    </td>
+                                    <td className="p-3">
+                                      {isUnsubmitted ? (
+                                        <span className="text-slate-505 italic text-[10px]">รอส่ง</span>
+                                      ) : (
+                                        <div className="text-slate-300 bg-[#0c101b] p-2 border border-slate-800 rounded text-[10.5px] leading-relaxed max-w-[185px] max-h-[95px] overflow-y-auto whitespace-pre-wrap select-all font-mono">
+                                          {sub.writtenReport}
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="p-3">
+                                      <div className="flex flex-col gap-1.5 min-w-[245px]">
+                                        <textarea
+                                          className="w-full bg-[#0c101b] border border-slate-800 rounded p-1.5 text-[10px] text-slate-205 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-white"
+                                          rows={3}
+                                          placeholder="พิมพ์คำอธิบายเชิงประจักษ์ (ติชมข้อคำถามที่ 3)..."
+                                          value={editingFeedback[sub.id] || ""}
+                                          onChange={(e) => setEditingFeedback(prev => ({ ...prev, [sub.id]: e.target.value }))}
+                                        />
+                                        <div className="flex items-center gap-1.5 bg-[#0c101b] border border-slate-800 rounded px-2 py-1.5 justify-between">
+                                          {/* Toggle Permission Checkbox */}
+                                          <label className="flex items-center gap-1 cursor-pointer select-none">
+                                            <input
+                                              type="checkbox"
+                                              checked={!!sub.showReviews}
+                                              onChange={async (e) => {
+                                                const newVal = e.target.checked;
+                                                try {
+                                                  const res = await fetch("/api/admin/feedback", {
+                                                    method: "POST",
+                                                    headers: { "Content-Type": "application/json" },
+                                                    body: JSON.stringify({ id: sub.studentId || sub.id, showReviews: newVal }),
+                                                  });
+                                                  if (res.ok) {
+                                                    fetchAdminSubmissions();
+                                                  }
+                                                } catch (err) {
+                                                  console.error(err);
+                                                }
+                                              }}
+                                              className="w-4 h-4 rounded accent-emerald-500 cursor-pointer"
+                                            />
+                                            <span className="text-[10px] text-slate-300 font-medium select-none">🔓 เปิดสิทธิ์เฉลยและวิจารณ์ 1-3</span>
+                                          </label>
+    
+                                          <div className="flex items-center gap-1 select-none">
+                                            <span className="text-[10px] text-slate-400 font-bold font-sans">คะแนน:</span>
+                                            <input
+                                              type="number"
+                                              min="0"
+                                              max="100"
+                                              className="w-12 bg-slate-900 border border-slate-800 rounded p-0.5 text-[10px] font-mono text-[#38bdf8] text-center focus:outline-none focus:ring-1 focus:ring-emerald-500 font-bold"
+                                              placeholder="0-100"
+                                              value={editingScores[sub.id] || ""}
+                                              onChange={(e) => setEditingScores(prev => ({ ...prev, [sub.id]: e.target.value }))}
+                                            />
+                                            <span className="text-[10px] text-slate-505 font-bold">/ 100</span>
+                                          </div>
+                                        </div>
+                                        <button
+                                          onClick={() => handleSendFeedback(sub.id)}
+                                          className="bg-[#059669] hover:bg-[#047857] text-slate-100 font-sans text-[10px] py-1 px-2 rounded font-bold transition-all border border-emerald-600 active:scale-95 cursor-pointer text-center"
+                                        >
+                                          ✔ บันทึกคำติชม & ปรับแก้คะแนนส่งกลับ
+                                        </button>
+                                        {sub.instructorFeedback && (
+                                          <div className="text-[9px] text-emerald-400 bg-emerald-950/30 p-1 border border-emerald-900/30 rounded mt-0.5 leading-normal">
+                                            ✓ ส่งแล้ว: "{sub.instructorFeedback}"
+                                          </div>
+                                        )}
+                                      </div>
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      <button
+                                        onClick={() => handleDeleteSubmission(sub.id)}
+                                        className="bg-rose-950/80 hover:bg-rose-900 text-rose-300 hover:text-white px-2 py-1 rounded text-[10px] font-bold border border-rose-900/40 cursor-pointer transition"
+                                      >
+                                        ลบข้อมูล
+                                      </button>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end gap-2 pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsAdminAuthenticated(false);
+                          setShowAdminLogin(false);
+                          setAdminPasswordInput("");
+                        }}
+                        className="bg-slate-800 hover:bg-slate-750 text-slate-300 py-2.5 px-6 rounded-lg text-xs transition duration-200 cursor-pointer font-sans font-bold"
+                      >
+                        ปิดหน้าต่างควบคุม
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+    );
+  };  // Student chat & simulation state
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([
     {
       id: "init",
       role: "model",
-      text: "ยินดีต้อนรับคุณนักสืบบัญชี... เอ่อ มีเรื่องอะไรด่วนเหรอ? ทาง Min งานยุ่งมากๆ เลยนะช่วงนี้ บันทึกบัญชีเงินสดของบริษัท VeloBike Logistics ประจำรอบ AC432 นี้เราก็ส่งสรุปให้ Alec และคณะตรวจบอร์ดบริหารเรียบร้อยหมดแล้ว... มีอะไรผิดปกติในไฟล์หรือเปล่าคุณ?",
+      text: "ยินดีต้อนรับคุณนักสืบบัญชี... มีเรื่องอะไรเร่งด่วนรึเปล่า? บัญชีเงินสดรอบนี้เราส่งสรุปให้ Alec ตรวจเรียบร้อยแล้วนะ มีอะไรเพิ่มเติมรึเปล่า?",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
   ]);
   const [userInput, setUserInput] = useState("");
   const [loading, setLoading] = useState(false);
+
   const [stressLevel, setStressLevel] = useState(15); // Starts at 15% stress
+  const getStressInfo = (level: number) => {
+    if (level >= 80) return { label: "PANICKED", color: "from-rose-500 to-rose-600 text-rose-400" };
+    if (level >= 50) return { label: "DEFENSIVE", color: "from-amber-500 to-amber-600 text-amber-400" };
+    return { label: "CALM", color: "from-sky-500 to-sky-600 text-[#38bdf8]" };
+  };
+  const stressInfo = getStressInfo(stressLevel);
+  const heartRate = 60 + Math.floor(stressLevel * 0.8) + (stressLevel >= 80 ? Math.floor(Math.random() * 10) : 0);
+
   const [unlockedSmokingGuns, setUnlockedSmokingGuns] = useState<string[]>([]);
   
   // Ref for auto scrolling chat
@@ -362,7 +681,7 @@ export default function App() {
       {
         id: "init",
         role: "model",
-        text: "ยินดีต้อนรับคุณนักสืบบัญชี... มีเรื่องอะไรเร่งด่วนรึเปล่า? บัญชีเงินสดรอบนี้เราส่งสรุปให้ Alec ตรวจเรียบร้อยแล้วนะ มีปัญหาบิลอะไรรวดเร็วหรือเปล่า?",
+        text: "ยินดีต้อนรับคุณนักสืบบัญชี... มีเรื่องอะไรเร่งด่วนรึเปล่า? บัญชีเงินสดรอบนี้เราส่งสรุปให้ Alec ตรวจเรียบร้อยแล้วนะ มีอะไรเพิ่มเติมรึเปล่า?",
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       }
     ]);
@@ -377,8 +696,8 @@ export default function App() {
   const handleSendMessage = async (textToSend: string) => {
     if (!textToSend.trim()) return;
 
-    if (questionsCount >= 5) {
-      alert("⚠️ คุณใช้สิทธิ์แชทสอบถาม K.Min ครบเกณฑ์โควตา 5 คำถามเรียบร้อยแล้ว! กรุณายื่นผลชันสูตรคดีด้านขวาเพื่อรับคะแนนวิเคราะห์สรุป");
+    if (questionsCount >= 10) {
+      alert("⚠️ คุณใช้สิทธิ์แชทสอบถาม K.Min ครบเกณฑ์โควตา 10 คำถามเรียบร้อยแล้ว! กรุณายื่นผลชันสูตรคดีด้านขวาเพื่อรับคะแนนวิเคราะห์สรุป");
       return;
     }
 
@@ -393,107 +712,51 @@ export default function App() {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     };
 
-    const updatedHistory = [...chatHistory, userMsg];
-    setChatHistory(updatedHistory);
+    setChatHistory(prev => [...prev, userMsg]);
     setUserInput("");
     setLoading(true);
 
     try {
-      // Keep only normal user/model dialogs to send to server, filtering out system alerts
-      const apiHistory = updatedHistory.filter(msg => !msg.id.startsWith("sys-"));
-
-      const response = await fetch("/api/chat", {
+      const res = await fetch("/api/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ 
-          history: apiHistory,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          history: [...chatHistory, userMsg],
           studentId,
           studentEmail
-        }),
+        })
       });
 
-      if (!response.ok) {
-        throw new Error("ระบบเชื่อมเคอร์เนล K.Min ขัดข้อง");
-      }
-
-      const data = await response.json();
-      
-      // Update dynamic stress level
-      if (data.stressIncrease) {
-        setStressLevel(prev => Math.min(100, prev + data.stressIncrease));
-      }
-
-      const kMinResponseText = stressLevel >= 95 
-        ? "พอแล้ว! หยุดต้อนทาง Min เถอะ!!... ใช่ เราแก้ไขสูตร SUM บัญชีเงินสดนั่นเองแหละ... ฮือๆ... ทาง Min มีงวดต้องผ่อนชำระหนี้สินสินเชื่อกองทุนหลังโควิดจนจะล้มละลายแล้ว... แต่อย่าเอาเรื่องส่ง Alec หรือตำรวจเลยนะ... ฮือออ"
-        : data.reply;
-
-      setChatHistory(prev => [
-        ...prev,
-        {
-          id: `min-${Date.now()}`,
+      if (res.ok) {
+        const data = await res.json();
+        const modelReply: ChatMessage = {
+          id: `mod-${Date.now()}`,
           role: "model",
-          text: kMinResponseText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          text: data.reply || "ไม่สามารถอ่านการวิเคราะห์ได้",
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setChatHistory(prev => [...prev, modelReply]);
+        if (data.stressIncrease) {
+          setStressLevel(prev => Math.min(100, prev + data.stressIncrease));
         }
-      ]);
-
-    } catch (err: any) {
+      } else {
+        const err = await res.json();
+        alert(err.error || "เกิดข้อผิดพลาดในการเชื่อมต่อกับ K.Min");
+      }
+    } catch (err) {
       console.error(err);
-      setChatHistory(prev => [
-        ...prev,
-        {
-          id: `sys-err-${Date.now()}`,
-          role: "model",
-          text: `[⚠️ ข้อผิดพลาดทางระบบ]: การตอบรับของ K.Min ถูกขัดจังหวะ กรุณาลองใหม่อีกครั้ง (${err.message})`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }
-      ]);
+      alert("ไม่สามารถติดต่อเซิร์ฟเวอร์จำลองการพิมพ์ได้");
     } finally {
       setLoading(false);
     }
   };
-
-  // Predefined Interactive Questions
-  const PRESET_PROMPTS = [
-    {
-      label: "❓ สอบถามหน้าที่หลักด้านการเงิน",
-      text: "สวัสดีครับ K.Min อยากทราบว่าในฐานะหัวหน้าแผนกบัญชี คุณมีหน้าที่รับผิดชอบในส่วนการควบคุมและตรวจสอบสมุดรายจ่ายเงินสดอย่างไรบ้างครับ?"
-    },
-    {
-      label: "🧐 สอบถามการควบคุมภายใน",
-      text: "ระบบการควบคุมภายในของบริษัท VeloBike Logistics มีขั้นตอนการจัดทำและอนุมัติสรุปข้อมูลในสมุดรายจ่าย Excel ก่อนส่งผู้บริหารอย่างไรครับ?"
-    },
-    {
-      label: "📂 สอบถามกระบวนการกระทบยอด",
-      text: "สมุดรายจ่ายกระแสเงินสดประจำงวดเดือนธันวาคม ได้มีการทำกระทบยอด (Bank Reconciliation) กับเอกสาร Bank Statement เรียบร้อยดีหรือไม่ครับ?"
-    },
-    {
-      label: "👩‍🏫 ขอคำชี้แจงสิทธิ์การแก้ไขไฟล์",
-      text: "นอกจากตัวคุณเองแล้ว มีพนักงานคนอื่นในแผนกบัญชีหรือหน่วยงานอื่นที่มีสิทธิ์เข้าถึงหรือแก้ไขสูตรในไฟล์สรุปยอดจ่ายของบริษัทบ้างหรือไม่ครับ?"
-    }
-  ];
-
-  // Dynamically calculate heart rate (BPM) based on stress levels
-  const heartRate = Math.round(72 + (stressLevel * 0.88) + (Math.sin(Date.now() / 1000) * 2));
-
-  // Determine stress level color and text status representation
-  const getStressDetails = (pct: number) => {
-    if (pct < 35) return { color: "from-emerald-500 to-green-400 font-bold text-emerald-400", bg: "bg-emerald-950/60 border-emerald-920", label: "ปกติ / นิ่งเฉย (Cold Calm)" };
-    if (pct < 65) return { color: "from-yellow-500 to-amber-400 font-bold text-amber-400", bg: "bg-amber-950/60 border-amber-920", label: "เริ่มมีพิรุธ / กังวล (Slightly Nervous)" };
-    if (pct < 88) return { color: "from-orange-500 to-red-400 font-bold text-orange-400", bg: "bg-orange-950/60 border-orange-920", label: "ลนลาน / หาข้ออ้าง (Panicky)" };
-    return { color: "from-red-600 to-rose-500 font-extrabold text-rose-500 animate-pulse", bg: "bg-rose-950/80 border-rose-920", label: "สติหลุดขาดสะบั้น (Breakdown Point!)" };
-  };
-
-  const stressInfo = getStressDetails(stressLevel);
 
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-[#0b0f19] text-slate-200 flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
         {/* BU Decorative background ambient accents */}
         <div className="absolute top-10 right-10 w-96 h-96 bg-indigo-900/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-10 left-10 w-96 h-96 bg-rose-950/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-10 left-10 w-96 h-96 bg-rose-955/10 rounded-full blur-3xl pointer-events-none" />
 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -514,7 +777,7 @@ export default function App() {
             </div>
             <div className="space-y-1">
               <div className="flex items-center justify-center gap-1.5 font-mono">
-                <span className="text-[10px] bg-sky-950 text-[#38bdf8] font-extrabold px-2 py-0.5 rounded border border-[#38bdf8]/40 uppercase tracking-widest">
+                <span className="text-[10px] bg-[#075985]/30 text-[#38bdf8] font-extrabold px-2 py-0.5 rounded border border-[#38bdf8]/40 uppercase tracking-widest">
                   Exam Portal
                 </span>
                 <span className="text-[10px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded border border-slate-700/60 uppercase">
@@ -525,7 +788,7 @@ export default function App() {
                 ม่านมายา พนักงานบัญชีปริศนา
               </h1>
               <p className="text-xs text-slate-400 max-w-xs mx-auto font-sans leading-relaxed">
-                ระบบชันสูตรทุจริตนิติวิทยาศาสตร์ (The Accountant&apos;s Veil) ประเมินชุดทดสอบประจำสิทธิ์รายบุคคล
+                ระบบเปิดหน้าบัญชีซ่อนเร้น (The Accountant&apos;s Veil) ชุดทดสอบรายบุคคล การบัญชีนิติวิทยา
               </p>
             </div>
           </div>
@@ -535,7 +798,7 @@ export default function App() {
           {/* Login Form */}
           <form onSubmit={handleStudentLogin} className="space-y-4">
             {loginError && (
-              <div className="bg-rose-950/70 border border-rose-900/60 p-3 rounded-lg text-xs text-rose-300 font-sans flex items-start gap-2">
+              <div className="bg-rose-955/70 border border-rose-900/60 p-3 rounded-lg text-xs text-rose-300 font-sans flex items-start gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
                 <span>{loginError}</span>
               </div>
@@ -551,7 +814,7 @@ export default function App() {
                 value={loginIdInput}
                 onChange={(e) => setLoginIdInput(e.target.value)}
                 maxLength={10}
-                className="w-full bg-[#0b0f1a] border border-slate-750 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 placeholder-slate-600 shadow-inner"
+                className="w-full bg-[#0b0f1a] border border-slate-755 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 placeholder-slate-600 shadow-inner"
                 required
               />
             </div>
@@ -565,17 +828,17 @@ export default function App() {
                 placeholder="ป้อนอีเมล (เช่น student@bu.ac.th)"
                 value={loginEmailInput}
                 onChange={(e) => setLoginEmailInput(e.target.value)}
-                className="w-full bg-[#0b0f1a] border border-slate-750 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 placeholder-slate-600 shadow-inner"
+                className="w-full bg-[#0b0f1a] border border-slate-755 rounded-xl px-3.5 py-2.5 text-xs text-slate-100 font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 placeholder-slate-600 shadow-inner"
                 required
               />
             </div>
 
             <button
               type="submit"
-              className="w-full bg-[#4f46e5] hover:bg-[#4338ca] text-slate-100 font-sans font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-indigo-950/30 cursor-pointer"
+              className="w-full bg-[#4f46e5] hover:bg-[#4338ca] text-slate-100 font-sans font-bold py-3 rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-lg shadow-[#4f46e5]/10 cursor-pointer"
             >
-              <GraduationCap className="w-4 h-4 text-white" />
-              <span>เข้าสู่กระบวนการสอบสวน (Access Case Files)</span>
+              <GraduationCap className="w-5 h-5 text-indigo-200" />
+              <span>เข้าสู่กระบวนการสอบสวนและสืบสวน (Access Case Files)</span>
             </button>
           </form>
 
@@ -583,276 +846,17 @@ export default function App() {
           <div className="bg-slate-900/50 border border-slate-800 p-3.5 rounded-lg text-[11px] leading-relaxed text-slate-400 font-sans text-left">
             <span className="font-bold text-slate-300 block mb-0.5 flex items-center gap-1">
               <Info className="w-3.5 h-3.5 text-[#38bdf8] shrink-0" />
-              <span>คำอธิบายสิทธิ์รายข้อคำถาม (Note):</span>
+              <span>สิ่งที่นักสืบต้องทำ (Note):</span>
             </span>
-            หลังจากเข้าสู่คดีแล้ว ยอดเงินกระแสทุจริต พิกัดสูตรแก้ และพฤติกรรมในงบลานซ์คดีจะถูกสลับใหม่สุ่มตามรายกรณีรหัสนักศึกษา เพื่อให้ได้ความตรงโปร่งใสสอดคล้องการฝึกชันสูตร
+            ให้วิเคราะห์ข้อมูลที่มี เพราะมีความสงสัยว่าจะเกิดเหตุการณ์ไม่ปกติขึ้นในองค์กร สามารถสอบถามข้อมูลเพิ่มเติมจากคนที่เกี่ยวข้องได้ เมื่อได้ผลวิเคราะห์ให้ตอบคำถาม 3 ข้อ
           </div>
 
           <div className="text-center pt-2 text-[10px] text-slate-600 font-sans animate-pulse">
             คณะบัญชี มหาวิทยาลัยกรุงเทพ (BU) | AC432 Forensic Series
           </div>
         </motion.div>
-
-        {/* Admin Access Modal Overlay inside Login Screen */}
-        {showAdminLogin && (
-          <div id="admin-modal-login" className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-fadeIn overflow-y-auto">
-            <div className={`bg-[#1e293b] border border-slate-750 p-6 rounded-2xl w-full transition-all duration-300 shadow-2xl ${isAdminAuthenticated ? "max-w-[95%] lg:max-w-[1350px]" : "max-w-sm"} space-y-4`}>
-              <div className="flex items-center justify-between border-b border-slate-700/85 pb-3">
-                <div className="flex items-center gap-2 text-sky-400 font-mono font-bold text-sm">
-                  <Sparkles className="w-5 h-5 text-[#38bdf8]" />
-                  <span>BU PORTAL: CENTRAL AUDITING CONTROL</span>
-                </div>
-                {isAdminAuthenticated && (
-                  <button
-                    onClick={() => {
-                      setIsAdminAuthenticated(false);
-                      setShowAdminLogin(false);
-                      setAdminPasswordInput("");
-                    }}
-                    className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white px-2.5 py-1 rounded text-xs transition font-mono border border-slate-700 cursor-pointer"
-                  >
-                    LOGOUT ADMIN
-                  </button>
-                )}
-              </div>
-              
-              {!isAdminAuthenticated ? (
-                <div className="space-y-3.5 text-left">
-                  <p className="text-xs text-slate-300 leading-relaxed font-sans text-left">
-                    กรุณากรอกรหัสผ่านบอร์ดผู้ฝึกสอนจำลอง เพื่อเข้าทบทวนผลคะแนนและประวัติการส่งงานของนักศึกษา (BU ADMIN):
-                  </p>
-                  <input
-                    type="password"
-                    placeholder="ป้อนรหัสผ่าน (BUADMIN2024)"
-                    value={adminPasswordInput}
-                    onChange={(e) => setAdminPasswordInput(e.target.value)}
-                    className="w-full bg-slate-900 border border-slate-755 p-2.5 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 text-white text-center font-mono placeholder-slate-600"
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        if (adminPasswordInput === "BUADMIN2024") {
-                          setIsAdminAuthenticated(true);
-                        } else {
-                          alert("รหัสผ่านไม่ถูกต้อง!");
-                        }
-                      }
-                    }}
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAdminLogin(false);
-                        setAdminPasswordInput("");
-                      }}
-                      className="flex-grow bg-slate-800 hover:bg-slate-700 text-slate-400 py-2.5 rounded-lg text-xs transition duration-200 cursor-pointer text-center font-sans border border-slate-700"
-                    >
-                      ยกเลิก
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (adminPasswordInput === "BUADMIN2024") {
-                          setIsAdminAuthenticated(true);
-                        } else {
-                          alert("รหัสผ่านไม่ถูกต้อง!");
-                        }
-                      }}
-                      className="flex-grow bg-[#38bdf8] hover:bg-[#7dd3fc] text-[#0f172a] font-bold py-2.5 rounded-lg text-xs transition duration-200 cursor-pointer text-center font-sans"
-                    >
-                      ยืนยัน
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="space-y-4 text-left">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-sky-950/20 border border-sky-900/40 p-4 rounded-xl text-xs text-sky-200 font-sans leading-relaxed">
-                    <div>
-                      🔓 ยินดีต้อนรับบอร์ดบริหาร! แผงควบคุมแสดงประวัติส่งผลชันสูตรคดีวิทยานิพจน์เรียงตามรหัสนักศึกษาและคะแนนแบบ Real-time
-                    </div>
-                    <div className="flex gap-2 shrink-0">
-                      <button
-                        onClick={downloadCSV}
-                        className="bg-[#059669] hover:bg-[#047857] text-slate-100 px-3 py-1.5 rounded-lg font-bold font-sans transition-all text-[11px] flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
-                      >
-                        <span>📥 ดาวน์โหลดผล (All CSV)</span>
-                      </button>
-                      <button
-                        onClick={handleWipeAllSubmissions}
-                        className="bg-rose-900 hover:bg-rose-850 border border-rose-950/40 text-rose-300 hover:text-white px-3 py-1.5 rounded-lg font-bold font-sans transition-all text-[11px] flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
-                      >
-                        <span>🚨 ล้างสารบบทั้งหมด</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Submissions Spreadsheet Table Grid */}
-                  <div className="border border-slate-750 rounded-xl overflow-hidden bg-slate-900">
-                    <div className="overflow-x-auto max-h-[420px]">
-                      <table className="w-full text-left border-collapse font-sans text-xs">
-                        <thead className="bg-[#0f172a] text-slate-300 font-bold sticky top-0 border-b border-slate-700">
-                          <tr>
-                            <th className="p-3">ลำดับ</th>
-                            <th className="p-3">ข้อมูลนักศึกษา</th>
-                            <th className="p-3">สถานะส่งงาน</th>
-                            <th className="p-3">คำตอบของนักศึกษา (ข้อ 1 & 2)</th>
-                            <th className="p-3 text-emerald-400">เฉลยตัวจริงของกรณีนี้</th>
-                            <th className="p-3 text-sky-400">คำอธิบายวิธีคำนวณเบื้องหลัง</th>
-                            <th className="p-3 text-center">คะแนนรวม</th>
-                            <th className="p-3">คำตอบข้อ 3 (เชิงประจักษ์)</th>
-                            <th className="p-3">ให้คำติชม / ส่งกลับ Feedback (ข้อ 3)</th>
-                            <th className="p-3 text-center">สิทธิ์ควบคุม</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {isAdminLoading ? (
-                            <tr>
-                              <td colSpan={10} className="p-8 text-center text-slate-500 font-mono">
-                                กำลังเรียกข้อมูลดึงประวัติงานจากเซิร์ฟเวอร์...
-                              </td>
-                            </tr>
-                          ) : adminSubmissions.length === 0 ? (
-                            <tr>
-                              <td colSpan={10} className="p-8 text-center text-slate-500 italic">
-                                ไม่พบบันทึกรหัสการยื่นรายงานในสารบบปัจจุบัน
-                              </td>
-                            </tr>
-                          ) : (
-                            adminSubmissions.map((sub, idx) => {
-                              const correct = getCorrectAnswersForId(sub.studentId);
-                              const isUnsubmitted = sub.isPlaceholder || sub.score === null || sub.score === undefined;
-                              return (
-                                <tr key={sub.id || idx} className="border-b border-slate-800 hover:bg-slate-800/40 transition-colors">
-                                  <td className="p-3 font-mono text-slate-500">{idx + 1}</td>
-                                  <td className="p-3 font-mono text-xs">
-                                    <div className="font-bold text-[#38bdf8] font-sans">{sub.studentId}</div>
-                                    <div className="text-[10px] text-slate-400">{sub.studentEmail}</div>
-                                    <div className="text-[9px] text-slate-500 font-sans mt-0.5">{sub.timestamp}</div>
-                                  </td>
-                                  <td className="p-3">
-                                    {isUnsubmitted ? (
-                                      <span className="px-2 py-0.5 bg-amber-950/70 text-amber-500 text-[10px] rounded border border-amber-900/30">
-                                        🔴 เพียงเข้าระบบ (ยังไม่ส่ง)
-                                      </span>
-                                    ) : (
-                                      <span className="px-2 py-0.5 bg-emerald-950/70 text-emerald-400 text-[10px] rounded border border-emerald-900/40">
-                                        🟢 ยื่นรายงานเสร็จสิ้น
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="p-3 leading-relaxed">
-                                    {isUnsubmitted ? (
-                                      <span className="text-slate-500 italic text-[11px]">รอการทบทวนแก้ไข...</span>
-                                    ) : (
-                                      <div className="space-y-0.5 max-w-[180px]">
-                                        <div>
-                                          <span className="text-slate-505 text-[10px]">เงินตอบ: </span>
-                                          <span className="font-mono text-amber-400 font-bold">{parseInt(sub.qAmount || "0").toLocaleString()} บาท</span>
-                                        </div>
-                                        <div>
-                                          <span className="text-slate-505 text-[10px]">พฤติกรรม: </span>
-                                          <span className="text-slate-300 font-sans font-medium text-[10.5px] block truncate" title={sub.qMethod || ""}>{sub.qMethod || "N/A"}</span>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="p-3 bg-emerald-950/10 leading-relaxed">
-                                    <div className="space-y-1 max-w-[200px]">
-                                      <div>
-                                        <span className="text-emerald-500/80 text-[10px] block font-sans">ยอดโกงจริง: </span>
-                                        <span className="font-mono text-[#10b981] font-bold text-xs">{correct.correctAmount.toLocaleString()} บาท</span>
-                                      </div>
-                                      <div>
-                                        <span className="text-emerald-500/80 text-[10px] block font-sans">คำเฉลยพฤติกรรม: </span>
-                                        <span className="text-emerald-300 text-[10px] block font-sans font-medium leading-normal">{correct.correctBehaviorLabel}</span>
-                                      </div>
-                                    </div>
-                                  </td>
-                                  <td className="p-3">
-                                    <div className="bg-[#0c101b] border border-slate-800 p-2 rounded text-[10px] text-sky-400 font-mono leading-relaxed whitespace-pre-line max-w-[250px]">
-                                      {correct.calculationExplanation}
-                                    </div>
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    {isUnsubmitted ? (
-                                      <span className="font-mono text-slate-500 text-[10px]">รอส่ง</span>
-                                    ) : (
-                                      <span className={`px-2 py-0.5 rounded text-[11px] font-mono font-bold ${
-                                        (sub.score || 0) >= 80 
-                                          ? "bg-emerald-950 text-emerald-400 border border-emerald-900" 
-                                          : (sub.score || 0) >= 50
-                                            ? "bg-amber-955/40 text-amber-400 border border-amber-900/60"
-                                            : "bg-rose-955/40 text-rose-400 border border-rose-900/60"
-                                      }`}>
-                                        {sub.score} / 100
-                                      </span>
-                                    )}
-                                  </td>
-                                  <td className="p-3">
-                                    {isUnsubmitted ? (
-                                      <span className="text-slate-500 italic text-[10px]">รอส่ง</span>
-                                    ) : (
-                                      <div className="text-slate-300 bg-[#0c101b] p-2 border border-slate-800 rounded text-[10.5px] leading-relaxed max-w-[185px] max-h-[95px] overflow-y-auto whitespace-pre-wrap select-all font-mono">
-                                        {sub.writtenReport}
-                                      </div>
-                                    )}
-                                  </td>
-                                  <td className="p-3">
-                                    <div className="flex flex-col gap-1.5 min-w-[245px]">
-                                      <textarea
-                                        className="w-full bg-[#0c101b] border border-slate-800 rounded p-1.5 text-[10px] text-slate-205 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-white"
-                                        rows={3}
-                                        placeholder="พิมพ์คำอธิบายเชิงประจักษ์ (ติชมข้อคำถามที่ 3)..."
-                                        value={editingFeedback[sub.id] || ""}
-                                        onChange={(e) => setEditingFeedback(prev => ({ ...prev, [sub.id]: e.target.value }))}
-                                      />
-                                      <button
-                                        onClick={() => handleSendFeedback(sub.id)}
-                                        className="bg-[#059669] hover:bg-[#047857] text-slate-100 font-sans text-[10px] py-1 px-2 rounded font-bold transition-all border border-emerald-600 active:scale-95 cursor-pointer text-center"
-                                      >
-                                        ✔ บันทึกคำติชม & ส่งกลับนักศึกษา
-                                      </button>
-                                      {sub.instructorFeedback && (
-                                        <div className="text-[9px] text-emerald-400 bg-emerald-950/30 p-1 border border-emerald-900/30 rounded mt-0.5 leading-normal">
-                                          ✓ ส่งแล้ว: "{sub.instructorFeedback}"
-                                        </div>
-                                      )}
-                                    </div>
-                                  </td>
-                                  <td className="p-3 text-center">
-                                    <button
-                                      onClick={() => handleDeleteSubmission(sub.id)}
-                                      className="bg-rose-950/80 hover:bg-rose-900 text-rose-300 hover:text-white px-2 py-1 rounded text-[10px] font-bold border border-rose-900/40 cursor-pointer transition"
-                                    >
-                                      ลบข้อมูล
-                                    </button>
-                                  </td>
-                                </tr>
-                              );
-                            })
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                  
-                  <div className="flex justify-end gap-2 pt-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsAdminAuthenticated(false);
-                        setShowAdminLogin(false);
-                        setAdminPasswordInput("");
-                      }}
-                      className="bg-slate-800 hover:bg-slate-750 text-slate-300 py-2.5 px-6 rounded-lg text-xs transition duration-200 cursor-pointer font-sans font-bold"
-                    >
-                      ปิดหน้าต่างควบคุม
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        {/* Render Admin Access Modal Overlay directly here on landing screen */}
+        {renderAdminModal()}
       </div>
     );
   }
@@ -907,7 +911,7 @@ export default function App() {
           <div 
             onClick={handleInstructorClick}
             className="flex items-center gap-4 bg-[#1e293b]/70 border border-slate-700/80 px-4 py-2 rounded-xl text-xs shrink-0 cursor-pointer select-none hover:border-sky-500/50 transition-all font-sans"
-            title="เคาะ 5 ครั้งเพื่อสิทธิ์ระบบ Admin"
+            title="เคาะเพื่อเข้าระบบ Admin"
           >
             <div className="text-right">
               <p className="text-[9px] uppercase text-slate-500 font-bold tracking-tight mb-0.5">Lead Instructor</p>
@@ -960,7 +964,7 @@ export default function App() {
               <div className="flex items-center justify-between text-xs">
                 <span className="text-slate-400 font-bold font-mono tracking-wider text-[10px] uppercase flex items-center gap-1.5">
                   <Flame className="w-4 h-4 text-rose-500 animate-pulse" />
-                  <span>ดัชนีความเครียดผู้ต้องหา (Stress Index)</span>
+                  <span>ดัชนีความเครียดผู้ถูกสงสัย (Stress Index)</span>
                 </span>
                 <span className={`text-xs font-mono font-bold ${stressInfo.color}`}>
                   {stressLevel}%
@@ -985,20 +989,20 @@ export default function App() {
               </div>
             </div>
 
-            {/* 5-Questions Countdown Alert Indicator Banner */}
+            {/* 10-Questions Countdown Alert Indicator Banner */}
             <div className="mt-3 flex items-center justify-between bg-[#0a1220] p-2.5 border border-slate-800 rounded-lg text-xs font-sans leading-none shadow-inner">
               <span className="text-slate-400 font-semibold flex items-center gap-1">
                 <AlertTriangle className="w-3.5 h-3.5 text-sky-400" />
                 <span>โควตาคำถาม K.Min ของคุณ:</span>
               </span>
               <span className={`font-mono font-black text-xs px-2.5 py-1 rounded-md border ${
-                questionsCount >= 5 
+                questionsCount >= 10 
                   ? "bg-red-950/80 text-red-400 border-red-900/60 animate-pulse" 
-                  : questionsCount >= 4
+                  : questionsCount >= 8
                     ? "bg-orange-950/80 text-orange-400 border-orange-900/60 animate-pulse"
                     : "bg-sky-950/80 text-sky-400 border-sky-900/60"
               }`}>
-                {5 - questionsCount} / 5 คำถามคงเหลือ
+                {10 - questionsCount} / 10 คำถามคงเหลือ
               </span>
             </div>
           </div>
@@ -1086,7 +1090,7 @@ export default function App() {
                 <button
                   key={idx}
                   onClick={() => handleSendMessage(prompt.text)}
-                  disabled={loading || questionsCount >= 5}
+                  disabled={loading || questionsCount >= 10}
                   className="text-left bg-slate-900 hover:bg-slate-800 text-[11px] text-[#38bdf8] hover:text-sky-305 border border-slate-850 p-2 rounded-lg transition-all line-clamp-1 truncate cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed font-sans"
                 >
                   {prompt.label}
@@ -1107,13 +1111,13 @@ export default function App() {
               type="text"
               value={userInput}
               onChange={(e) => setUserInput(e.target.value)}
-              disabled={loading || questionsCount >= 5}
-              placeholder={questionsCount >= 5 ? "🔴 โควตาเตหักคำถามสิ้นสุดแล้ว กรุณายื่นรายงานฯ ด้านขวา" : "ซักฟอกพยาน/ถามคำถามที่นี่..."}
+              disabled={loading || questionsCount >= 10}
+              placeholder={questionsCount >= 10 ? "🔴 โควตาคำถามสิ้นสุดแล้ว กรุณายื่นรายงานฯ ด้านขวา" : "ซักฟอกข้อมูล/ถามคำถามที่นี่..."}
               className="flex-grow bg-[#1e293b] border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500 disabled:opacity-60 font-sans"
             />
             <button
               type="submit"
-              disabled={loading || !userInput.trim() || questionsCount >= 5}
+              disabled={loading || !userInput.trim() || questionsCount >= 10}
               className="bg-[#38bdf8] hover:bg-[#7dd3fc] text-[#0f172a] px-3.5 py-2 rounded-lg text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center cursor-pointer font-sans shadow-md"
             >
               <Send className="w-3.5 h-3.5" />
@@ -1189,7 +1193,7 @@ export default function App() {
                     : "bg-slate-800/40 text-slate-405 hover:text-slate-200 hover:bg-slate-800 border border-transparent"}`}
               >
                 <FileText className="w-3.5 h-3.5" />
-                <span>5. ยื่นรายงานตัดสิน (Submit)</span>
+                <span>5. ยื่นรายงานผลการตรวจสอบ (Submit)</span>
               </button>
 
             </div>
@@ -1216,7 +1220,7 @@ export default function App() {
                   <div className="flex items-center gap-2 pb-2 border-b border-slate-800">
                     <Compass className="w-6 h-6 text-orange-500" />
                     <h2 className="text-base font-bold text-slate-100 font-sans">
-                      คู่มือการสอบบัญชีสัจนิยม AC432 (Forensic Auditing Brief)
+                      คู่มือการสืบสวนสอบสวนเกี่ยวกับบัญชี (Forensic Auditing Brief)
                     </h2>
                   </div>
 
@@ -1371,184 +1375,7 @@ export default function App() {
       </footer>
 
       {/* Admin Access Modal Overlay */}
-      {showAdminLogin && (
-        <div id="admin-modal" className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-sm p-4 animate-fadeIn overflow-y-auto">
-          <div className={`bg-[#1e293b] border border-slate-750 p-6 rounded-2xl w-full transition-all duration-300 shadow-2xl ${isAdminAuthenticated ? "max-w-5xl" : "max-w-sm"} space-y-4`}>
-            <div className="flex items-center justify-between border-b border-slate-700/85 pb-3">
-              <div className="flex items-center gap-2 text-sky-400 font-mono font-bold text-sm">
-                <Sparkles className="w-5 h-5 text-[#38bdf8]" />
-                <span>BU PORTAL: CENTRAL AUDITING CONTROL</span>
-              </div>
-              {isAdminAuthenticated && (
-                <button
-                  onClick={() => {
-                    setIsAdminAuthenticated(false);
-                    setShowAdminLogin(false);
-                    setAdminPasswordInput("");
-                  }}
-                  className="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white px-2.5 py-1 rounded text-xs transition font-mono border border-slate-700 cursor-pointer"
-                >
-                  LOGOUT ADMIN
-                </button>
-              )}
-            </div>
-            
-            {!isAdminAuthenticated ? (
-              <div className="space-y-3.5">
-                <p className="text-xs text-slate-300 leading-relaxed font-sans text-left">
-                  กรุณากรอกรหัสผ่านบอร์ดผู้ฝึกสอนจำลอง เพื่อเข้าทบทวนผลคะแนนและประวัติการส่งงานของนักศึกษา (BU ADMIN):
-                </p>
-                <input
-                  type="password"
-                  placeholder="ป้อนรหัสผ่าน (BUADMIN2024)"
-                  value={adminPasswordInput}
-                  onChange={(e) => setAdminPasswordInput(e.target.value)}
-                  className="w-full bg-slate-900 border border-slate-755 p-2.5 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-sky-500 text-white text-center font-mono placeholder-slate-600"
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      if (adminPasswordInput === "BUADMIN2024") {
-                        setIsAdminAuthenticated(true);
-                       } else {
-                        alert("รหัสผ่านไม่ถูกต้อง!");
-                      }
-                    }
-                  }}
-                />
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAdminLogin(false);
-                      setAdminPasswordInput("");
-                    }}
-                    className="flex-grow bg-slate-800 hover:bg-slate-700 text-slate-400 py-2.5 rounded-lg text-xs transition duration-200 cursor-pointer text-center font-sans border border-slate-700"
-                  >
-                    ยกเลิก
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (adminPasswordInput === "BUADMIN2024") {
-                        setIsAdminAuthenticated(true);
-                      } else {
-                        alert("รหัสผ่านไม่ถูกต้อง!");
-                      }
-                    }}
-                    className="flex-grow bg-[#38bdf8] hover:bg-[#7dd3fc] text-[#0f172a] font-bold py-2.5 rounded-lg text-xs transition duration-200 cursor-pointer text-center font-sans"
-                  >
-                    ยืนยัน
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-sky-950/20 border border-sky-900/40 p-4 rounded-xl text-xs text-sky-200 font-sans leading-relaxed">
-                  <div>
-                    🔓 ยินดีต้อนรับบอร์ดบริหาร! แผงควบคุมแสดงประวัติส่งผลชันสูตรคดีวิทยานิพจน์เรียงตามรหัสนักศึกษาและคะแนนแบบ Real-time
-                  </div>
-                  <div className="flex gap-2 shrink-0">
-                    <button
-                      onClick={downloadCSV}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-slate-100 px-3 py-1.5 rounded-lg font-bold font-sans transition-all text-[11px] flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
-                    >
-                      <span>📥 ดาวน์โหลดผล (All CSV)</span>
-                    </button>
-                    <button
-                      onClick={handleWipeAllSubmissions}
-                      className="bg-rose-900 hover:bg-rose-850 border border-rose-900/50 text-rose-300 hover:text-white px-3 py-1.5 rounded-lg font-bold font-sans transition-all text-[11px] flex items-center gap-1.5 cursor-pointer hover:scale-105 active:scale-95"
-                    >
-                      <span>🚨 ล้างสารบบทั้งหมด</span>
-                    </button>
-                  </div>
-                </div>
-
-                {/* Submissions Spreadsheet Table Grid */}
-                <div className="border border-slate-750 rounded-xl overflow-hidden bg-slate-900">
-                  <div className="overflow-x-auto max-h-[350px]">
-                    <table className="w-full text-left border-collapse font-sans text-xs">
-                      <thead className="bg-[#0f172a] text-slate-300 font-bold sticky top-0 border-b border-slate-700">
-                        <tr>
-                          <th className="p-3">ลำดับ</th>
-                          <th className="p-3">รหัสนักศึกษา</th>
-                          <th className="p-3">อีเมลนักศึกษา</th>
-                          <th className="p-3 text-right">ยอดเงินตอบ</th>
-                          <th className="p-3">ตัวแทนพฤติกรรม</th>
-                          <th className="p-3">คะแนนหลักที่ได้ (เต็ม 100)</th>
-                          <th className="p-3">วันเวลาจัดส่งรายงาน</th>
-                          <th className="p-3 text-center">จัดการ</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {isAdminLoading ? (
-                          <tr>
-                            <td colSpan={8} className="p-8 text-center text-slate-500 font-mono">
-                              กำลังเรียกข้อมูลดึงประวัติงานจากเซิร์ฟเวอร์...
-                            </td>
-                          </tr>
-                        ) : adminSubmissions.length === 0 ? (
-                          <tr>
-                            <td colSpan={8} className="p-8 text-center text-slate-500 italic">
-                              ไม่พบบันทึกรหัสการยื่นรายงานในสารบบปัจจุบัน
-                            </td>
-                          </tr>
-                        ) : (
-                          adminSubmissions.map((sub, idx) => (
-                            <tr key={sub.id || idx} className="border-b border-slate-800 hover:bg-slate-800/50 transition-colors">
-                              <td className="p-3 font-mono text-slate-505">{idx + 1}</td>
-                              <td className="p-3 font-mono font-bold text-[#38bdf8]">{sub.studentId}</td>
-                              <td className="p-3 font-mono text-slate-400">{sub.studentEmail}</td>
-                              <td className="p-3 text-right font-mono text-amber-400 font-bold">
-                                {parseInt(sub.qAmount || "0").toLocaleString()} บาท
-                              </td>
-                              <td className="p-3 text-slate-300 max-w-[150px] truncate" title={sub.qMethod}>
-                                {sub.qMethod}
-                              </td>
-                              <td className="p-3 font-semibold">
-                                <span className={`px-2 py-0.5 rounded text-[11px] font-mono ${
-                                  sub.score >= 80 
-                                    ? "bg-emerald-950 text-emerald-400 border border-emerald-900" 
-                                    : sub.score >= 50
-                                      ? "bg-amber-950 text-amber-400 border border-amber-900"
-                                      : "bg-rose-950 text-rose-400 border border-rose-900"
-                                }`}>
-                                  {sub.score} / 100
-                                </span>
-                              </td>
-                              <td className="p-3 font-mono text-slate-500 text-[10px]">{sub.timestamp}</td>
-                              <td className="p-3 text-center">
-                                <button
-                                  onClick={() => handleDeleteSubmission(sub.id)}
-                                  className="bg-rose-950/80 hover:bg-rose-900 text-rose-300 hover:text-white px-2 py-1 rounded text-[10px] font-bold border border-rose-900/40 cursor-pointer transition"
-                                >
-                                  ลบข้อมูล
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-                
-                <div className="flex justify-end gap-2 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAdminAuthenticated(false);
-                      setShowAdminLogin(false);
-                      setAdminPasswordInput("");
-                    }}
-                    className="bg-slate-800 hover:bg-slate-750 text-slate-300 py-2.5 px-6 rounded-lg text-xs transition duration-200 cursor-pointer font-sans font-bold"
-                  >
-                    ปิดหน้าต่างควบคุม
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {renderAdminModal()}
 
     </div>
   );

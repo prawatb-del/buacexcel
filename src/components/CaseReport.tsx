@@ -23,10 +23,83 @@ export default function CaseReport({ unlockedSmokingGuns, onRestartGame, student
   // Grading API states
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [score, setScore] = useState(0);
   const [moneyReview, setMoneyReview] = useState("");
   const [behaviorReview, setBehaviorReview] = useState("");
   const [formulaReview, setFormulaReview] = useState("");
+  const [instructorFeedback, setInstructorFeedback] = useState("");
+  const [showReviews, setShowReviews] = useState(false);
+
+  const fetchExistingSubmission = async (silent = false) => {
+    if (!studentId) return;
+    if (!silent) setIsRefreshing(true);
+    try {
+      const response = await fetch(`/api/student/submission?studentId=${studentId}`);
+      if (response.ok) {
+        const data = await response.json();
+        if (data) {
+          // Always pick up feedback and custom adjusted scores if there are any
+          setInstructorFeedback(data.instructorFeedback || "");
+          setShowReviews(!!data.showReviews);
+          if (data.score !== null && data.score !== undefined) {
+            setScore(Number(data.score));
+          }
+          
+          if (!data.isPlaceholder && data.qAmount) {
+            setQAmount(data.qAmount || "");
+            setQMethod(data.qMethod || "");
+            setWrittenReport(data.writtenReport || "");
+            if (data.moneyReview) setMoneyReview(data.moneyReview);
+            if (data.behaviorReview) setBehaviorReview(data.behaviorReview);
+            if (data.formulaReview) setFormulaReview(data.formulaReview);
+            setIsSubmitted(true);
+          } else {
+            // Placeholder represents not fully submitted yet
+            setIsSubmitted(false);
+          }
+        } else {
+          // Wiped or deleted by admin
+          setIsSubmitted(false);
+          setInstructorFeedback("");
+          setScore(0);
+          setShowReviews(false);
+          setQAmount("");
+          setQMethod("");
+          setWrittenReport("");
+          setMoneyReview("");
+          setBehaviorReview("");
+          setFormulaReview("");
+        }
+
+        if (!silent) {
+          alert("✓ ซิงค์ตรวจสอบสถานะและประดับคะแนนล่าสุดกับระบบอาจารย์เรียบร้อยแล้ว!");
+        }
+      } else {
+        if (!silent) {
+          alert("ไม่สามารถซิงค์ข้อมูลได้ในขณะนี้: ระบบตอบสนองผิดพลาด");
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch existing submission:", err);
+      if (!silent) {
+        alert("ไม่สามารถซิงค์ข้อมูลได้ในขณะนี้: การเชื่อมต่อเซิร์ฟเวอร์ขัดข้อง");
+      }
+    } finally {
+      if (!silent) setIsRefreshing(false);
+    }
+  };
+
+  // Fetch feedback and status on mount and set up real-time 4-second polling
+  React.useEffect(() => {
+    fetchExistingSubmission(false);
+
+    const timer = setInterval(() => {
+      fetchExistingSubmission(true);
+    }, 4000);
+
+    return () => clearInterval(timer);
+  }, [studentId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,8 +107,8 @@ export default function CaseReport({ unlockedSmokingGuns, onRestartGame, student
       alert("กรุณากรอกข้อมูลจำนวนเงินทุจริต และเลือกทฤษฎีพฤติกรรมการทุจริตก่อนทำการส่งผลครับ");
       return;
     }
-    if (writtenReport.trim().length < 10) {
-      alert("กรุณาป้อนคำอธิบายวิเคราะห์สูตรและสรุปรายงานเพิ่มเติม (ขั้นต่ำ 10 ตัวอักษร) เพื่อบันทึกพยานหลักฐานประเมินตรรกะผลคะแนนครับ");
+    if (writtenReport.trim().length < 5) {
+      alert("กรุณาป้อนคำอธิบายวิเคราะห์สูตรและสรุปรายงานเพิ่มเติม (ขั้นต่ำ 5 ตัวอักษร) เพื่อบันทึกพยานหลักฐานประเมินตรรกะผลคะแนนครับ");
       return;
     }
 
@@ -63,7 +136,9 @@ export default function CaseReport({ unlockedSmokingGuns, onRestartGame, student
       setMoneyReview(data.moneyReview || "");
       setBehaviorReview(data.behaviorReview || "");
       setFormulaReview(data.formulaReview || "");
+      setInstructorFeedback(data.instructorFeedback || "");
       setIsSubmitted(true);
+      alert("🎉 ยื่นสมุดวิเคราะห์ชันสูตรคดีสำเร็จ! คะแนนและการวิเคราะห์ความจริงถูกนำส่งบอร์ดบริหารเรียบร้อยแล้ว");
     } catch (err: any) {
       alert(err.message || "เกิดข้อผิดพลาดในการส่งคำตอบ");
     } finally {
@@ -120,45 +195,87 @@ export default function CaseReport({ unlockedSmokingGuns, onRestartGame, student
           </div>
 
           {/* Graded Critiques Blocks - Explicit requested form */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            
-            {/* 1. Money Review Card */}
-            <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 font-sans block">1. วิจารณ์เรื่องการหาจำนวนเงิน</span>
-                <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/50 px-2 py-0.5 rounded">40 คะแนน</span>
+          {showReviews ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              
+              {/* 1. Money Review Card */}
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 font-sans block">1. วิจารณ์เรื่องการหาจำนวนเงิน</span>
+                  <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/50 px-2 py-0.5 rounded">40 คะแนน</span>
+                </div>
+                <p className="text-xs text-slate-200 leading-relaxed font-sans text-justify bg-slate-950/30 p-2.5 rounded border border-slate-900 min-h-[100px]">
+                  {moneyReview}
+                </p>
               </div>
-              <p className="text-xs text-slate-200 leading-relaxed font-sans text-justify bg-slate-950/30 p-2.5 rounded border border-slate-900 min-h-[100px]">
-                {moneyReview}
+
+              {/* 2. Behavior Review Card */}
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 font-sans block">2. วิจารณ์พฤติกรรมการทุจริต</span>
+                  <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/50 px-2 py-0.5 rounded">30 คะแนน</span>
+                </div>
+                <p className="text-xs text-slate-200 leading-relaxed font-sans text-justify bg-slate-950/30 p-2.5 rounded border border-slate-900 min-h-[100px]">
+                  {behaviorReview}
+                </p>
+              </div>
+
+              {/* 3. Formula Analyze Card */}
+              <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-400 font-sans block">3. วิจารณ์สูตรและการวิเคราะห์</span>
+                  <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/50 px-2 py-0.5 rounded">30 คะแนน</span>
+                </div>
+                <p className="text-xs text-slate-200 leading-relaxed font-sans text-justify bg-slate-950/30 p-2.5 rounded border border-slate-900 min-h-[100px]">
+                  {formulaReview}
+                </p>
+              </div>
+
+            </div>
+          ) : (
+            <div className="bg-slate-900/55 border border-amber-900/35 p-5 rounded-xl text-center space-y-2 flex flex-col items-center justify-center py-6 shadow-lg">
+              <div className="w-10 h-10 rounded-full bg-slate-950 border border-amber-800/50 flex items-center justify-center shadow-inner">
+                <ShieldAlert className="w-5 h-5 text-amber-500 animate-pulse" />
+              </div>
+              <h4 className="text-xs font-bold text-slate-200 font-sans">🔒 รายละเอียดวิจารณ์คำตอบข้อ 1-3 และตัวบทเฉลยถูกสงวนไว้</h4>
+              <p className="text-[11px] text-slate-400 max-w-lg leading-relaxed font-sans mt-1">
+                การประกาศเฉลยพฤติการณ์ คำนวณเบื้องหลัง และรายงานการวิเคราะห์รายข้อ (ข้อ 1-3) จะปรากฏให้สืบสวนต่อเมื่อ ผู้ตรวจสอบบัญชีหรือคณาจารย์คุมคดีทำการอนุมัติคำขอเปิดรับทราบคะแนนเฉลยสิทธิ์ให้กับรหัสนักศึกษาของคุณแบบเฉพาะเจาะจง
               </p>
             </div>
+          )}
 
-            {/* 2. Behavior Review Card */}
-            <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 font-sans block">2. วิจารณ์พฤติกรรมการทุจริต</span>
-                <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/50 px-2 py-0.5 rounded">30 คะแนน</span>
-              </div>
-              <p className="text-xs text-slate-200 leading-relaxed font-sans text-justify bg-slate-950/30 p-2.5 rounded border border-slate-900 min-h-[100px]">
-                {behaviorReview}
-              </p>
-            </div>
-
-            {/* 3. Formula Analyze Card */}
-            <div className="bg-slate-900/60 border border-slate-800/80 rounded-xl p-4 space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-400 font-sans block">3. วิจารณ์สูตรและการวิเคราะห์</span>
-                <span className="text-[11px] font-mono text-emerald-400 font-bold bg-emerald-950/50 px-2 py-0.5 rounded">30 คะแนน</span>
-              </div>
-              <p className="text-xs text-slate-200 leading-relaxed font-sans text-justify bg-slate-950/30 p-2.5 rounded border border-slate-900 min-h-[100px]">
-                {formulaReview}
-              </p>
-            </div>
-
+          {/* Live Sync Status for Results Screen */}
+          <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800 p-3 rounded-lg text-xs">
+            <span className="text-slate-400 font-sans flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#10b981] animate-pulse" />
+              <span>ระบบเชื่อมต่อตรวจสอบความคิดเห็นและปรับแก้คะแนนย้อนหลังโดยอาจารย์ (Live Synced)</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => fetchExistingSubmission(false)}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 bg-slate-800 hover:bg-slate-750 text-slate-300 px-3 py-1 rounded text-[10.5px] font-bold transition font-mono border border-slate-700 cursor-pointer active:scale-95 shrink-0"
+            >
+              <RefreshCw className={`w-3 h-3 ${isRefreshing ? "animate-spin text-white" : ""}`} />
+              <span>{isRefreshing ? "กำลังซิงค์ค่าติชม..." : "ซิงค์ผลการตรวจด่วน"}</span>
+            </button>
           </div>
 
+          {/* Instructor Feedback Card */}
+          {instructorFeedback && (
+            <div className="bg-emerald-950/20 border border-emerald-900/40 p-4 rounded-xl leading-relaxed text-xs">
+              <p className="text-emerald-400 font-bold flex items-center gap-1 mb-1.5 font-sans">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                <span>คำวิเคราะห์และคะแนนติชมจำลองประจักษ์จากบอร์ดผู้สอบบัญชี (Instructor Feedback):</span>
+              </p>
+              <div className="text-slate-200 bg-slate-950/50 p-3 rounded-lg border border-emerald-950/40 font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
+                {instructorFeedback}
+              </div>
+            </div>
+          )}
+
           {/* Interactive confession text if successful */}
-          {score >= 80 && (
+          {score >= 80 && showReviews && (
             <div className="bg-slate-900/70 border border-indigo-950 p-4 rounded-xl leading-relaxed text-xs">
               <p className="text-indigo-300 font-bold flex items-center gap-1 mb-1.5">
                 <Award className="w-4 h-4 shrink-0" />
@@ -191,6 +308,46 @@ export default function CaseReport({ unlockedSmokingGuns, onRestartGame, student
         /* AUDITOR QUESTIONS SUBMISSION FORM */
         <form onSubmit={handleSubmit} className="flex-1 p-5 overflow-auto space-y-4 bg-[#121b2a]">
           
+          {/* Real-time sync & Instructor Feedback card on student's active form page */}
+          <div className="flex items-center justify-between bg-slate-900/40 border border-slate-800 p-2.5 rounded-lg text-xs">
+            <span className="text-slate-400 font-sans flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse shrink-0" />
+              <span>ตรวจพบสถานะและอัพเดทคะแนนตรงกับระบบอาจารย์ (Live Synced)</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => fetchExistingSubmission(false)}
+              disabled={isRefreshing}
+              className="flex items-center gap-1 bg-slate-800 hover:bg-slate-700 text-slate-300 px-2.5 py-1 rounded text-[10px] font-bold transition font-mono border border-slate-700 cursor-pointer active:scale-95 shrink-0"
+            >
+              <RefreshCw className={`w-3 h-3 ${isRefreshing ? "animate-spin text-white" : ""}`} />
+              <span>{isRefreshing ? "กำลังซิงค์..." : "ซิงค์ด่วนพิเศษ"}</span>
+            </button>
+          </div>
+
+          {(instructorFeedback || (score !== null && score > 0)) && (
+            <div className="bg-emerald-950/20 border border-emerald-900/40 p-4 rounded-xl leading-relaxed text-xs space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-900/30 pb-2">
+                <p className="text-emerald-400 font-bold flex items-center gap-1.5 font-sans">
+                  <Award className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <span>บันทึกการประเมิน & คำแนะนำจากอาจารย์ผู้คุมคดี:</span>
+                </p>
+                {score !== null && score !== undefined && (
+                  <span className="bg-emerald-900/70 border border-emerald-700 text-[#34d399] font-mono text-[11px] px-2.5 py-1 rounded-full font-bold">
+                    คะแนนรวมเฉลยกรณีของคุณ: {score} / 100
+                  </span>
+                )}
+              </div>
+              {instructorFeedback ? (
+                <div className="text-slate-200 bg-slate-950/60 p-3 rounded-lg border border-emerald-950/40 font-mono text-[11px] whitespace-pre-wrap leading-relaxed shadow-inner">
+                  {instructorFeedback}
+                </div>
+              ) : (
+                <p className="text-[11px] text-slate-400 italic font-mono">อาจารย์ยังไม่ได้บันทึกหรือระบุตัวอักษรป้อนกลับเพิ่มเติม แต่ได้รับการอัพเดตสิทธิเกรดคะแนนส่งกลับเรียบร้อยแล้ว</p>
+              )}
+            </div>
+          )}
+
           <div className="bg-slate-900/60 border border-slate-800 p-3 rounded-lg text-xs text-slate-300 space-y-1.5 font-sans leading-relaxed">
             <p className="font-semibold text-slate-200 flex items-center gap-1.5">
               <HelpCircle className="w-4 h-4 text-emerald-400 shrink-0" />
