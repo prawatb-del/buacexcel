@@ -700,9 +700,9 @@ export default function App() {
     const EPISODES = [
       { ep: 1, title: "ม่านมายา พนักงานบัญชีปริศนา Ep. 1", desc: "บัญชีเงินล้าน", active: true, tag: "" },
       { ep: 2, title: "เงาร้ายใต้ตัวเลข Ep. 2", desc: "พนักงานเงา (Ghost Employees)", active: true, tag: "" },
-      { ep: 3, title: "เส้นทางสายปริศนา Ep. 3", desc: "ชันสูตรแกะรอยประเด็นจัดกระดาษข้อมูลสลับใบอินวอยซ์คู่ค้าปลอมขัดงบดุล", active: true, tag: "" },
-      { ep: 4, title: "แกะรอยบัญชีผี Ep. 4", desc: "เปิดโปงเอกสารสั่งโอนจ่ายเช็ครั่วไหลสู่นอมินีนมัสการกองทุนสำรองส่วนบุคคล", active: true, tag: "" },
-      { ep: 5, title: "บทสรุปแห่งสัจธรรม Ep. 5", desc: "สารบาญรวบรวมพยานหลักฐานเบื้องลึกมัดตัว K.Min ในสารบบพิจารณาคดีขั้นสุดท้าย", active: true, tag: "" }
+      { ep: 3, title: "เส้นทางสายปริศนา Ep. 3", desc: "อินวอยซ์หลงทาง", active: true, tag: "" },
+      { ep: 4, title: "แกะรอยบัญชีผี Ep. 4", desc: "รั่วกันหมด", active: true, tag: "" },
+      { ep: 5, title: "บทสรุปแห่งสัจธรรม Ep. 5", desc: "อะมิตาพุต", active: true, tag: "" }
     ];
 
     return (
