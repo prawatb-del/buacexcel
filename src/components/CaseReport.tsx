@@ -11,10 +11,23 @@ interface CaseReportProps {
     embezzledAmount: number;
     correctCellKeyword: string;
     correctBehavior: { value: string; label: string; description: string };
+    ep2DjungSalary: number;
+    ep2DjungAccount: string;
+    ep2CorrectBehavior: string;
+    ep2CorrectCell: string;
   };
+  selectedEpisode?: number | null;
 }
 
-export default function CaseReport({ unlockedSmokingGuns, onRestartGame, studentId, studentEmail, caseData }: CaseReportProps) {
+export const EP2_BEHAVIORS = [
+  { value: "opt-ep2-no-collusion", label: "A) คลาดเคลื่อนจากระบบงานจัดทำ: สมมติฐานไม่มีทุจริต คีย์เลขรหัสผิดอย่างสุจริต" },
+  { value: "opt-ep2-min-only", label: "B) K.Min ยักยอกฝ่ายเดียว: สวมสิทธิ์บัญชีรับโอน ดนัย จัง แอบแอดรายการเข้าระบบ payroll เพื่อผันเป้า" },
+  { value: "opt-ep2-jin-only", label: "C) J.Jin ทุจริตฝ่ายจัดซื้อทางอ้อม: สร้างสัญญาซัพพลายเออร์เทียมแฝงบัญชี ดนัย เข้ามารับเงินบริการแทน" },
+  { value: "opt-ep2-collusion", label: "D) สมคบคิดทุจริตร่วมกัน (Collusion): J.Jin สร้างข้อมูลสวมสิทธิ์พนักงานผี ดนัย จัง (D.Jung) และ K.Min ตัวการฝ่ายบัญชีแต่งงบอนุมัติผ่านเข้าบัญชีม้าที่ตรงกับผู้ตรวจรับ M.N. Accounting Solution" }
+];
+
+export default function CaseReport({ unlockedSmokingGuns, onRestartGame, studentId, studentEmail, caseData, selectedEpisode }: CaseReportProps) {
+  const isEp2 = selectedEpisode === 2;
   // Form values
   const [qAmount, setQAmount] = useState("");
   const [qMethod, setQMethod] = useState("");
@@ -354,7 +367,7 @@ export default function CaseReport({ unlockedSmokingGuns, onRestartGame, student
               <span>ระเบียบเกณฑ์พิพากษาคดี (AC432 Dynamic Assessment):</span>
             </p>
             <p className="text-slate-300">
-              ข้อนี้ใช้วิธีประเมินโจทย์แบบสุ่มตามรายบุคคลของนักศึกษา (รหัส: <strong className="text-amber-300 font-mono">{studentId}</strong>) ข้อมูลที่พบในสมุดบัญชีจริงจะอ้างอิงและจำลองยอดตรงกับตัวคุณเท่านั้น กรุณาวิเคราะห์แล้วป้อนตัวเลขให้ถูกต้อง
+              ข้อนี้ใช้วิธีประเมินโจทย์แบบสุ่มตามรายบุคคลของนักศึกษา (รหัส: <strong className="text-amber-300 font-mono">{studentId.split("-ep")[0]}</strong>) ข้อมูลที่พบในสมุดบัญชีจริงจะอ้างอิงและจำลองยอดตรงกับตัวคุณเท่านั้น กรุณาวิเคราะห์แล้วป้อนตัวเลขให้ถูกต้อง
             </p>
             <div className="flex gap-2 pt-1 font-mono text-[10px]">
               <span className="bg-slate-800 text-slate-300 px-2.2 py-0.5 rounded border border-slate-700">เบาะแสสแกนได้ในสมุด: {unlockedSmokingGuns.length} / 3</span>
@@ -369,12 +382,15 @@ export default function CaseReport({ unlockedSmokingGuns, onRestartGame, student
           {/* Dynamic Question 1 (Strict Numeric Entry) */}
           <div className="bg-[#1e293b]/60 border border-slate-700/60 p-4 rounded-xl space-y-2 ">
             <label className="text-xs font-bold text-slate-200 block font-sans">
-              1. ระบุยอดเงินทุจริตทับซ้อน (Reconciliation Discrepancy) ที่ตรวจสืบเจอในกรณีของรหัสตัวคุณ *
+              {isEp2 
+                ? "1. ระบุยอดเงินเดือนปลอมสุทธิที่โอนให้พนักงานผี D.Jung (Net Paid) ประจำเดือนธันวาคม 2568 *" 
+                : "1. ระบุยอดเงินทุจริตทับซ้อน (Reconciliation Discrepancy) ที่ตรวจสืบเจอในกรณีของรหัสตัวคุณ *"
+              }
             </label>
             <div className="relative rounded-lg shadow-sm">
               <input
                 type="text"
-                placeholder="กรอกยอดเงินเป็นตัวเลข (เช่น 506,150)"
+                placeholder={isEp2 ? "กรอกยอดเงินเดือนพนักงานผี เช่น 124,500" : "กรอกยอดเงินเป็นตัวเลข (เช่น 506,150)"}
                 value={qAmount}
                 onChange={(e) => setQAmount(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 pl-3 pr-12 text-xs font-mono text-slate-100 focus:outline-none focus:ring-1 focus:ring-rose-500"
@@ -385,14 +401,20 @@ export default function CaseReport({ unlockedSmokingGuns, onRestartGame, student
               </div>
             </div>
             <p className="text-[10px] text-slate-400 font-mono">
-              * คำแนะนำ: สืบค้นยอดโอนไปหาภายนอกสลับที่กระทบยอดไม่ลงตัวมาตอบ
+              {isEp2 
+                ? "* คำแนะนำ: คลิกตรวจสอบในตาราง 'สมุดรายจ่าย Excel' ค้นหาแถวที่ 10 ประจักษ์เงินเดือนสุทธิ" 
+                : "* คำแนะนำ: สืบค้นยอดโอนไปหาภายนอกสลับที่กระทบยอดไม่ลงตัวมาตอบ"
+              }
             </p>
           </div>
 
-          {/* Dynamic Question 2 (10 MCQ Audit Behaviors) */}
+          {/* Dynamic Question 2 (MCQ Audit Behaviors) */}
           <div className="bg-[#1e293b]/60 border border-slate-700/60 p-4 rounded-xl space-y-2">
             <label className="text-xs font-bold text-slate-200 block font-sans">
-              2. ระบุพฤติกรรมการทุจริตและการแต่งพิกัดสูตร (เลือกจากข้อวินิจฉัยต่อไปนี้) *
+              {isEp2 
+                ? "2. ระบุข้อพิสูจน์การร่วมมือและทฤษฎีพฤติกรรมการทุจริตของคดีนี้ *" 
+                : "2. ระบุพฤติกรรมการทุจริตและการแต่งพิกัดสูตร (เลือกจากข้อวินิจฉัยต่อไปนี้) *"
+              }
             </label>
             <select
               value={qMethod}
@@ -400,25 +422,42 @@ export default function CaseReport({ unlockedSmokingGuns, onRestartGame, student
               className="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-rose-500"
               required
             >
-              <option value="">--เลือกวิธีจัดการตกแต่งพฤติกรรมในงวดนี้--</option>
-              {EMBEZZLEMENT_BEHAVIORS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
+              <option value="">{isEp2 ? "--เลือกข้อสรุปสมคบคิดทุจริต--" : "--เลือกวิธีจัดการตกแต่งพฤติกรรมในงวดนี้--"}</option>
+              {isEp2 ? (
+                EP2_BEHAVIORS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))
+              ) : (
+                EMBEZZLEMENT_BEHAVIORS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))
+              )}
             </select>
             <p className="text-[10px] text-slate-400 font-sans">
-              * คำแนะนำ: ตรวจทานเฉลยพฤติการณ์ที่สุมแต่งข้ามเซลล์ตารางเฉพาะรายกรณีของคุณ
+              {isEp2
+                ? "* คำแนะนำ: ทะเบียนคู่ค้าระบุพยานความสัมพันธ์ของข้อมูลจัดซื้อกับฝ่ายบัญชี"
+                : "* คำแนะนำ: ตรวจทานเฉลยพฤติการณ์ที่สุมแต่งข้ามเซลล์ตารางเฉพาะรายกรณีของคุณ"
+              }
             </p>
           </div>
 
           {/* Open-ended written report explaining formulas */}
           <div className="bg-[#1e293b]/60 border border-slate-700/60 p-4 rounded-xl space-y-2">
             <label className="text-xs font-bold text-slate-200 block font-sans">
-              3. บันทึกคำอธิบายเชิงประจักษ์พลาสติกสูตร Excel และการควบคุมภายใน (Forensic Notes) *
+              {isEp2 
+                ? "3. ชันสูตรรอยต่อความเชื่อมโยง ยืนยันพิกัดสูตร และชี้ขาดความผิดของ ดนัย จัง (D.Jung) *" 
+                : "3. บันทึกคำอธิบายเชิงประจักษ์พลาสติกสูตร Excel และการควบคุมภายใน (Forensic Notes) *"
+              }
             </label>
             <textarea
-              placeholder="เขียนบันทึกเจาะลึก: ระบุตำแหน่งเซลล์ที่ถูกตั้งใจละเว้น (เฉลาย G12, G13, หรือ G14), ความพยายามเปลี่ยนความหมายสูตรยอดรวมสรุปที่ช่อง G16, และความน่าสงสัยของการโยงเลขบัญชีที่ตรงกับเงินเดือนพนักงาน..."
+              placeholder={isEp2
+                ? "อธิบายพิกัดสูตรที่ใช้ค้นหา เช่น G10 (XLOOKUP ขึ้น GHOST_SUSPECT เพราะดนัยไม่มีกำลังพลจริง) และ H10 (ตรวจพิกัด F10 พบเลขบัญชีโอนไปตรงกับ M.N. Accounting ของซัพพลายเออร์จัดซื้อคู่ค้าปลอม) พร้อมระบุข้อเท็จจริงว่า ดนัย จัง ฐานะเจ้าของบัญชีม้าถือว่ามีความผิดทางตรรกะกฎหมาย..."
+                : "เขียนบันทึกเจาะลึก: ระบุตำแหน่งเซลล์ที่ถูกตั้งใจละเว้น (เฉลาย G12, G13, หรือ G14), ความพยายามเปลี่ยนความหมายสูตรยอดรวมสรุปที่ช่อง G16, และความน่าสงสัยของการโยงเลขบัญชีที่ตรงกับเงินเดือนพนักงาน..."
+              }
               value={writtenReport}
               onChange={(e) => setWrittenReport(e.target.value)}
               rows={4}
@@ -426,7 +465,10 @@ export default function CaseReport({ unlockedSmokingGuns, onRestartGame, student
               required
             />
             <p className="text-[10px] text-slate-500 font-sans">
-              * ระบบ AI ของ ALec จะขูดเช็คคุณภาพ คีย์เวิร์ดสูตรบวก และพิกัดเซลล์ที่เกี่ยวข้องเพื่อคิดสัดส่วนเกรดคะแนน 30 คะแนนเต็ม
+              {isEp2
+                ? "* ระบบจะตรวจทานคีย์เวิร์ดสูตรเด่นด่วน XLOOKUP, G10, H10, ซัพพลายเออร์, บัญชีม้า เพื่อคิดสัดส่วนผลลัพธ์คะแนนเขียน"
+                : "* ระบบ AI ของ ALec จะขูดเช็คคุณภาพ คีย์เวิร์ดสูตรบวก และพิกัดเซลล์ที่เกี่ยวข้องเพื่อคิดสัดส่วนเกรดคะแนน 30 คะแนนเต็ม"
+              }
             </p>
           </div>
 

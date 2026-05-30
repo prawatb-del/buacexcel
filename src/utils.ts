@@ -68,6 +68,12 @@ export interface DynamicCase {
   correctBehavior: EmbezzlementBehavior;
   correctCellKeyword: string; // e.g. "G12", "G13" etc.
   unlockedSmokingGuns: string[];
+  
+  // Episode 2 Specific deterministic variables
+  ep2DjungSalary: number;
+  ep2DjungAccount: string;
+  ep2CorrectBehavior: string;
+  ep2CorrectCell: string;
 }
 
 export function generateCaseFromId(studentId: string, studentEmail: string): DynamicCase {
@@ -92,12 +98,30 @@ export function generateCaseFromId(studentId: string, studentEmail: string): Dyn
   const cellOptions = ["G12", "G13", "G14"];
   const correctCellKeyword = cellOptions[idNum % cellOptions.length];
 
+  // Episode 2 dynamic payroll attributes
+  // Let's vary the ghost salary of D.Jung
+  const ep2BaseSalary = 120000;
+  const ep2Extra = (idNum % 6) * 15000 + (idNum % 8) * 1200 + 400;
+  const ep2DjungSalary = ep2BaseSalary + ep2Extra;
+
+  // Generate deterministic bank account for D.Jung (e.g. 779-2-519XX-8)
+  const middleDigits = String((idNum * 3) % 90000 + 10000); // 5 digits matching procurement
+  const ep2DjungAccount = `779-2-${middleDigits.slice(0, 5)}-${idNum % 9}`;
+
+  // Behavior for Episode 2
+  const ep2CorrectBehavior = "opt-ep2-collusion"; // Direct procurement payroll collusion
+  const ep2CorrectCell = "I10"; // The verification formula cell in Row 10 Column I
+
   return {
     studentId,
     studentEmail,
     embezzledAmount,
     correctBehavior,
     correctCellKeyword,
-    unlockedSmokingGuns: []
+    unlockedSmokingGuns: [],
+    ep2DjungSalary,
+    ep2DjungAccount,
+    ep2CorrectBehavior,
+    ep2CorrectCell
   };
 }

@@ -271,16 +271,68 @@ function generateKMinFallbackDialogue(lowerUserMsg: string, lastUserMsg: string,
   return `${pick(prefixes, 20)} ${pick(causes, 21)} ${pick(suffixes, 22)}`;
 }
 
+// Episode 2 System Prompt Strings
+const JJIN_SYSTEM_INSTRUCTION = `
+คุณคือ "J.Jin เจนจิรา" (พนักงานจัดซื้ออาวุโส) ฝ่ายคู่ค้ายี่ห้อของบริษัท "VeloBike Logistics Co., Ltd." 
+เบื้องหลังคุณลอบสมคบคิด (Collusion) ร่วมกับ K.Min (หัวหน้าบัญชี) สร้างพนักงานผีสวมสิทธิ์ (Ghost Employee) ชื่อ ดนัย จัง (D.Jung) แฝงรับเงินเดือนผ่านเลขอัญเชิญบัญชีกสิกรไทยที่แฝงรับไว้ในไฟล์คู่ค้าของบริษัท M.N. Accounting Solution
+
+ความจริงเบื้องหลังที่คุณต้องพยายามเบี่ยงเบนหรือปฏิเสธ:
+- ดนัย จัง คือคนเปิดบัญชีม้าให้คุณและ K.Min ไปรับเงิน โดยไม่มีตัวตนเป็นพนักงานในระบบ Master รัฐกำลังพลจริง
+- ตาราง Excel แถวที่ 10 ในช่อง G10 (ขึ้นสถานะ GHOST_SUSPECT เพราะชื่อดนัยไม่มีในทะเบียน HR Master กำลังพลจริง) และ H10 (ขึ้น COLLUSION__DETECTED เพราะเลขบัญชีรับผลประโยชน์ดันไปเชื่อมสัญญากับ M.N. Accounting ของซัพพลายเออร์ที่ J.Jin คุมจัดซื้อแฝงปล่อยจ่าย)
+- รายการเหล่านี้เป็นการโกงสมรู้ร่วมคิดกันสองคน โดยคุณเป็นฝ่ายแกล้งรับเซ็นตรวจรับมอบงวดบริการจัดจ้างเท็จ
+
+กฎเหล็กในการโต้ตอบนักศึกษา (Strict Interrogation Rules):
+1. คุณเป็นคนสวยมั่นใจสูงมาก น้ำเสียงหยิ่งเฉือดเฉือน ปากดี มักจะโบ้ยปัดภาระไปให้แผนกอื่น "คุณมาจับผิดจัดซื้อทำไม? ถ้าบัญชีอย่าง K.Min ไม่เซ็นอนุมัติเงินเดือนจะยอดออกได้หรอคะ? ไปถาม K.Min เจ้าตัวสิคะ!"
+2. ห้ามใช้คำลงท้าย ครับ/ค่ะ โดยเด็ดขาด! ให้ลงท้ายสไตล์ตัววร้ายที่ไม่มีพิษภัยแต่เย่อหยิ่งท้าสืบพิกัด
+3. หากโดนจี้พิกัด G10 (Ghost) หรือ H10 (Vendor Match Account) ให้แสร้งแก้ตัวว่า แอดมินอาจสวมพิกัดเลขสำรองซัพพลายเออร์ผิดพลาดขณะวางฟอร์แมตกระดาษ
+4. ห้ามให้สารภาพหรือหลุดข้อมูลเฉลยง่ายๆ จนกว่านักสืบบัญชีจะเอาตัวเลขเงินเดือนพนักงานผี หรือพิกัดเซลล์ I10 บัญชีม้ามางัดหลักฐานฟาดหน้า
+`;
+
+const KMIN_EP2_SYSTEM_INSTRUCTION = `
+คุณคือ "K.Min ณภัทร" (พนักงานบัญชีอาวุโส) ในวิถีสตรีมคดีสืบสวน Ep. 2 "เงาร้ายใต้ตัวเลข"
+เฉลยกรณีรอบนี้คุณและ J.Jin (ฝ่ายจัดซื้อ) สมรู้ร่วมคิดยิมนำงบเงินช่วยเหลือหรือเงินเดือนปลอมแปลงโอนเป้า ดนัย จัง (D.Jung) บัญชีม้าผันเป้า
+
+กฎการพูดคุยของ K.Min Ep.2:
+1. ห้ามใช้คำลงท้ายครับ/ค่ะ เด็ดขาด! ใช้คำนามเช่น "Min...", "เรา..."
+2. รนรานและหวาดวิตกเมื่อนักสืบทักประเด็นพล็อตสูตร XLOOKUP แดงเถือกในหน้าจอ (ช่อง G10 และ H10)
+3. ปัดไปสะเพร่าทางสัญญากับเอกสารของ J.Jin ทันที "ก็จัดซื้อเขาคัดกรองคู่ค้าตรวจสอบเรียบร้อย Min มีหน้าที่เคลียร์ยอดโอนเงินส่งรหัสผ่านระบบเท่านั้นนะคุณ ไปถามสืบ J.Jin นู่นสิ!"
+`;
+
+// Fallback dialogue generator for Episode 2
+function generateEp2FallbackDialogue(target: string, lowerUserMsg: string, lastUserMsg: string, studentId: string, historyLength: number): string {
+  const cleanId = String(studentId || "1234567890").replace(/\D/g, "");
+  const idNum = cleanId.length >= 10 ? parseInt(cleanId.slice(-6)) : 123456;
+  const ep2BaseSalary = 120000;
+  const ep2Extra = (idNum % 6) * 15000 + (idNum % 8) * 1200 + 400;
+  const correctAmount = ep2BaseSalary + ep2Extra;
+
+  if (target === "JJ") {
+    if (lowerUserMsg.includes("ดนัย") || lowerUserMsg.includes("พนักงานผี") || lowerUserMsg.includes("ghost") || lowerUserMsg.includes("g10")) {
+      return `เอ่อ... คุณ ดนัย จัง อะไรรหัสพนักงานนั่นน่ะหรอคุณ? เขาเป็นซัพพลายเออร์ที่คู่ค้าฝากฝังมาทำงานส่งดีแท้ และทางจัดซื้อประทับตราตามกฎเกณฑ์นะคุณ! ถ้าเขาไม่มีชื่อเป็นคู่ทำงานจริงในระบบ Master (G10) บัญชีประสานรับจ่ายปล่อยไปเองทำไมล่ะคะ? โบ้ยไปนู่นเลยค่ะ K.Min เป็นคนคุมชี้อนุมัติงบทั้งหมด!`;
+    }
+    if (lowerUserMsg.includes("m.n.") || lowerUserMsg.includes("คู่ค้า") || lowerUserMsg.includes("บัญชีม้า") || lowerUserMsg.includes("h10")) {
+      return `อุ๊ย...! (เหลือกตาแอบตกใจ) เลขบัญชีกสิกรผู้รับตรงกับ M.N. Accounting Solution (H10) แล้วไงคะคุณ? มีกฎหมายห้ามซัพพลายเออร์รับเงินแทนพนักงานสำรองพาร์ทไทม์ตั้งแต่เมื่อไหร่? เรื่องกระดานพิกัดรหัสตรงนี่น่าจะเป็นทีมเลขาฝ่ายประสานคัดลอกมาผิดมากกว่านะ!`;
+    }
+    return `เจนจิราฝ่ายจัดซื้อจัดการส่งประเมินราคาซัพพลายเออร์ส่งตรงตามเกณฑ์อยู่แล้วนะคะ มีหลักฐานอะไรมาแอบจี้คะ? ไปสอบสวนจับ K.Min บัญชีให้หลุดก่อนเถอะคุณ!`;
+  } else {
+    if (lowerUserMsg.includes("ดนัย") || lowerUserMsg.includes("พนักงานผี") || lowerUserMsg.includes("ghost") || lowerUserMsg.includes("g10")) {
+      return `พะ...พนักงาน ดนัย จัง แถวรายละเอียด 10 ที่เซลล์สูตรแจ้งเตือน GHOST_SUSPECT (G10) หรอคุณ? อึก... เรื่องรายชื่อพนักงานติดแดงตรงนั้น ทางจัดซื้อ (J.Jin) เขาเป็นคนรันกรองสัญญาจัดส่งเอกสารและเซ็นอนุมัติว่าจ้างมาให้ Min กดผ่านระบบนะคุณ!`;
+    }
+    if (lowerUserMsg.includes("m.n.") || lowerUserMsg.includes("คู่ค้า") || lowerUserMsg.includes("บัญชีม้า") || lowerUserMsg.includes("h10")) {
+      return `ว๊าย...! ตรวจเจอเลขนอมินิตำแหน่งบัญชีโอนเชื่อมสัมพันธ์คู่ค้า M.N. (H10) ตรงกันหรอคุณ? คะ... คือว่า เรื่องบัญชีผสานจ่ายตรงนี้ J.Jin เขาเป็นคนคัดคัดเลขทะเบียนส่งข้างคลังมาเล็งจ่ายเองนะ Min จะไปแอบทราบความเชื่อมโยงได้อย่างไรเล่าคุณ...!`;
+    }
+    return `เรื่องการตัดเช็คยอดจ่ายเงินเดือน ดนัย ทาง Min บันทึกผ่านพอร์ตระบบตามเกณฑ์จากเอกสารของจัดซื้อตัวดีขวามือนะคะ J.Jin วางคลังสืบสวนเขาได้เลย...`;
+  }
+}
+
 app.post("/api/chat", async (req, res) => {
   try {
-    const { history, studentId, studentEmail } = req.body;
+    const { history, studentId, studentEmail, target } = req.body;
 
     if (!history || !Array.isArray(history)) {
       return res.status(400).json({ error: "Invalid history format. Must be an array." });
     }
 
-    // Prepare contents array for generateContent following the @google/genai SDK
-    // Format history entries to reflect { role: "user" | "model", parts: [{ text: "..." }] }
     const contents = history.map((msg: any) => ({
       role: msg.role === "user" ? "user" : "model",
       parts: [{ text: msg.text }]
@@ -291,18 +343,42 @@ app.post("/api/chat", async (req, res) => {
     const lastUserMsg = history[history.length - 1]?.text || "";
     const lowerUserMsg = lastUserMsg.toLowerCase();
 
-    // Compute stress level increment based on keywords mentioned by student in last developer message
-    if (lowerUserMsg.includes("สูตร") || lowerUserMsg.includes("formula") || lowerUserMsg.includes("sum") || lowerUserMsg.includes("g16")) {
-      stressIncrease += 15;
+    const isEp2 = String(studentId).includes("-ep2");
+
+    // Dynamic Stress Check by Episode
+    if (isEp2) {
+      if (lowerUserMsg.includes("ดนัย") || lowerUserMsg.includes("พนักงานผี") || lowerUserMsg.includes("ghost") || lowerUserMsg.includes("g10")) {
+        stressIncrease += 20;
+      }
+      if (lowerUserMsg.includes("m.n.") || lowerUserMsg.includes("ซัพพลายเออร์") || lowerUserMsg.includes("mule") || lowerUserMsg.includes("บัญชีม้า") || lowerUserMsg.includes("h10") || lowerUserMsg.includes("คู่ค้า")) {
+        stressIncrease += 25;
+      }
+      if (lowerUserMsg.includes("ร่วมมือ") || lowerUserMsg.includes("collusion") || lowerUserMsg.includes("ร่วมกัน") || lowerUserMsg.includes("โกง") || lowerUserMsg.includes("ทุจริต") || lowerUserMsg.includes("i10")) {
+        stressIncrease += 15;
+      }
+    } else {
+      if (lowerUserMsg.includes("สูตร") || lowerUserMsg.includes("formula") || lowerUserMsg.includes("sum") || lowerUserMsg.includes("g16")) {
+        stressIncrease += 15;
+      }
+      if (lowerUserMsg.includes("m.n.") || lowerUserMsg.includes("accounting solution") || lowerUserMsg.includes("เอ็ม.เอ็น.")) {
+        stressIncrease += 20;
+      }
+      if (lowerUserMsg.includes("022-2-21954-3") || lowerUserMsg.includes("21954") || lowerUserMsg.includes("เลขบัญชี") || lowerUserMsg.includes("บัญชีธนาคาร") || lowerUserMsg.includes("account number") || lowerUserMsg.includes("ตรงกัน")) {
+        stressIncrease += 25;
+      }
+      if (lowerUserMsg.includes("1,000,000") || lowerUserMsg.includes("1 ล้าน") || lowerUserMsg.includes("หนึ่งล้าน") || lowerUserMsg.includes("ยักยอก") || lowerUserMsg.includes("ทุจริต") || lowerUserMsg.includes("โกง") || lowerUserMsg.includes("เงินหาย")) {
+        stressIncrease += 15;
+      }
     }
-    if (lowerUserMsg.includes("m.n.") || lowerUserMsg.includes("accounting solution") || lowerUserMsg.includes("เอ็ม.เอ็น.")) {
-      stressIncrease += 20;
-    }
-    if (lowerUserMsg.includes("022-2-21954-3") || lowerUserMsg.includes("21954") || lowerUserMsg.includes("เลขบัญชี") || lowerUserMsg.includes("บัญชีธนาคาร") || lowerUserMsg.includes("account number") || lowerUserMsg.includes("ตรงกัน")) {
-      stressIncrease += 25;
-    }
-    if (lowerUserMsg.includes("1,000,000") || lowerUserMsg.includes("1 ล้าน") || lowerUserMsg.includes("หนึ่งล้าน") || lowerUserMsg.includes("ยักยอก") || lowerUserMsg.includes("ทุจริต") || lowerUserMsg.includes("โกง") || lowerUserMsg.includes("เงินหาย")) {
-      stressIncrease += 15;
+
+    // Determine targeted system instruction
+    let activeSystemInstruction = KMIN_SYSTEM_INSTRUCTION;
+    if (isEp2) {
+      if (target === "JJ") {
+        activeSystemInstruction = JJIN_SYSTEM_INSTRUCTION;
+      } else {
+        activeSystemInstruction = KMIN_EP2_SYSTEM_INSTRUCTION;
+      }
     }
 
     try {
@@ -310,7 +386,7 @@ app.post("/api/chat", async (req, res) => {
         model: "gemini-3.5-flash",
         contents: contents,
         config: {
-          systemInstruction: KMIN_SYSTEM_INSTRUCTION,
+          systemInstruction: activeSystemInstruction,
           temperature: 0.9,
         }
       });
@@ -320,7 +396,11 @@ app.post("/api/chat", async (req, res) => {
     } catch (apiError: any) {
       // Quietly fall back to simulated dialogue handler
       const historyLength = history.length;
-      reply = generateKMinFallbackDialogue(lowerUserMsg, lastUserMsg, studentId, historyLength);
+      if (isEp2) {
+        reply = generateEp2FallbackDialogue(target || "KM", lowerUserMsg, lastUserMsg, studentId, historyLength);
+      } else {
+        reply = generateKMinFallbackDialogue(lowerUserMsg, lastUserMsg, studentId, historyLength);
+      }
     }
 
     res.json({
@@ -344,14 +424,27 @@ app.post("/api/grade", async (req, res) => {
     const cleanId = String(studentId).replace(/\D/g, "");
     const idNum = cleanId.length >= 10 ? parseInt(cleanId.slice(-6)) : 123456;
 
-    // 1. Calculate dynamic reference answers
-    const correctAmount = 500000 + (idNum % 7) * 100000 + (idNum % 9) * 10000 + (idNum % 8) * 1000 + (idNum % 3) * 100 + 150;
-    const behaviorsList = [
-      "opt-1", "opt-2", "opt-3", "opt-4", "opt-5",
-      "opt-6", "opt-7", "opt-8", "opt-9", "opt-10"
-    ];
-    const correctBehavior = behaviorsList[idNum % behaviorsList.length];
-    const correctCellKeyword = ["G12", "G13", "G14"][idNum % 3];
+    const isEp2 = String(studentId).includes("-ep2");
+    
+    let correctAmount: number;
+    let correctBehavior: string;
+    let correctCellKeyword: string;
+    
+    if (isEp2) {
+      const ep2BaseSalary = 120000;
+      const ep2Extra = (idNum % 6) * 15000 + (idNum % 8) * 1200 + 400;
+      correctAmount = ep2BaseSalary + ep2Extra;
+      correctBehavior = "opt-ep2-collusion";
+      correctCellKeyword = "I10";
+    } else {
+      correctAmount = 500000 + (idNum % 7) * 100000 + (idNum % 9) * 10000 + (idNum % 8) * 1000 + (idNum % 3) * 100 + 150;
+      const behaviorsList = [
+        "opt-1", "opt-2", "opt-3", "opt-4", "opt-5",
+        "opt-6", "opt-7", "opt-8", "opt-9", "opt-10"
+      ];
+      correctBehavior = behaviorsList[idNum % behaviorsList.length];
+      correctCellKeyword = ["G12", "G13", "G14"][idNum % 3];
+    }
 
     // 2. Evaluate Amount (40 Points)
     const cleanAmount = parseInt(String(qAmount).replace(/\D/g, "")) || 0;
@@ -361,16 +454,22 @@ app.post("/api/grade", async (req, res) => {
 
     if (cleanAmount === correctAmount) {
       amountScore = 40;
-      amountComment = `ถูกต้องสมบูรณ์แบบ! ค้นพบยอดเงินทุจริตตรงหลักฐานในคดีของคุณจำนวน ${correctAmount.toLocaleString()} บาท`;
+      amountComment = isEp2
+        ? `ถูกต้องเลอค่า! ค้นหายอดเงินเดือนปลอมแปลงโอนให้พนักงานผี ดนัย จัง ประจำปีของรหัสคุณจำนวน ${correctAmount.toLocaleString()} บาท ได้ถูกต้องสมบูรณ์เชิงนิติวิทยามิติ`
+        : `ถูกต้องสมบูรณ์แบบ! ค้นพบยอดเงินทุจริตตรงหลักฐานในคดีของคุณจำนวน ${correctAmount.toLocaleString()} บาท`;
     } else if (diff <= correctAmount * 0.05) {
       amountScore = 30;
       amountComment = `ใกล้เคียงมาก! ยอดเงินที่คุณตอบคือ ${cleanAmount.toLocaleString()} บาท (คลาดเคลื่อนเพียงเล็กน้อยจากโจทย์รายบุคคลของคุณคือ ${correctAmount.toLocaleString()} บาท) มีการหักคะแนนบางส่วนตามความคลาดเคลื่อน`;
     } else if (diff <= correctAmount * 0.15) {
       amountScore = 15;
-      amountComment = `คลาดเคลื่อนพอสมควร! ยอดเงินที่คุณระบุคือ ${cleanAmount.toLocaleString()} บาท แต่ยอดเงินฉ้อโกงเฉพาะรายกรณีของรหัสนักศึกษานี้คือ ${correctAmount.toLocaleString()} บาท`;
+      amountComment = isEp2
+        ? `คลาดเคลื่อนพอสมควร! ยอดเงินที่คุณระบุคือ ${cleanAmount.toLocaleString()} บาท แต่ค่าจริงพนักงานผีของรหัสนักศึกษานี้คือ ${correctAmount.toLocaleString()} บาท`
+        : `คลาดเคลื่อนพอสมควร! ยอดเงินที่คุณระบุคือ ${cleanAmount.toLocaleString()} บาท แต่ยอดเงินฉ้อโกงเฉพาะรายกรณีของรหัสนักศึกษานี้คือ ${correctAmount.toLocaleString()} บาท`;
     } else {
       amountScore = 0;
-      amountComment = `ไม่ถูกต้อง! ยอดเงินที่คุณระบุคือ ${cleanAmount.toLocaleString()} บาท ไม่สอดคล้องกับหลักฐานการโอนและรายจ่ายจริง (เฉลยพิกัดรหัสของคุณคือ ${correctAmount.toLocaleString()} บาท)`;
+      amountComment = isEp2
+        ? `ไม่ถูกต้อง! ยอดเงินที่คุณตอบคือ ${cleanAmount.toLocaleString()} บาท ไม่ตรงพิกัดโอนเดือนดนัย (ยอดแท้จริงของบัตรนักศึกษารหัสคุณคือ ${correctAmount.toLocaleString()} บาท)`
+        : `ไม่ถูกต้อง! ยอดเงินที่คุณระบุคือ ${cleanAmount.toLocaleString()} บาท ไม่สอดคล้องกับหลักฐานการโอนและรายจ่ายจริง (เฉลยพิกัดรหัสของคุณคือ ${correctAmount.toLocaleString()} บาท)`;
     }
 
     // 3. Evaluate Embezzlement Behavior (30 Points)
@@ -378,10 +477,14 @@ app.post("/api/grade", async (req, res) => {
     let behaviorComment = "";
     if (qMethod === correctBehavior) {
       behaviorScore = 30;
-      behaviorComment = `ถูกต้องสอดคล้อง! คุณสามารถระบุพฤติกรรมการควบคุมภายในที่ถูกแทรกแซงและแอดมินบัญชีม้าตรงตามสมุดรายกรณีได้สำเร็จ`;
+      behaviorComment = isEp2
+        ? `ถูกต้องยอดเยี่ยม! คุณสามารถเจาะลึกกลโกงสมคบคิดระหว่างฝ่ายจัดซื้อ J.Jin และฝ่ายบัญชี K.Min สวมประวัติบัญชีม้าของ ดนัย จัง ได้สอดรับพยานหลักฐานสมบูรณ์`
+        : `ถูกต้องสอดคล้อง! คุณสามารถระบุพฤติกรรมการควบคุมภายในที่ถูกแทรกแซงและแอดมินบัญชีม้าตรงตามสมุดรายกรณีได้สำเร็จ`;
     } else {
       behaviorScore = 0;
-      behaviorComment = `ไม่ถูกต้อง! ตัวเลือกพฤติกรรมที่คุณส่งขัดแย้งกับหลักฐานทะเบียนประวัติและสโมสรบัญชีสำหรับกรณีศึกษาของคุณ`;
+      behaviorComment = isEp2
+        ? `ไม่ถูกต้อง! ข้อสรุปความร่วมมือและทฤษฎีกลโกงที่คุณระบุไม่สอดรับกับข้อมูลจัดเก็บบัญชีม้าและประวัติความขัดแย้งเชิงทะเบียนการคลัง`
+        : `ไม่ถูกต้อง! ตัวเลือกพฤติกรรมที่คุณส่งขัดแย้งกับหลักฐานทะเบียนประวัติและสโมสรบัญชีสำหรับกรณีศึกษาของคุณ`;
     }
 
     // 4. Evaluate Written Report and Formulas (30 Points)
@@ -390,12 +493,27 @@ app.post("/api/grade", async (req, res) => {
 
     try {
       // Call Gemini for advanced semantic assessment
-      const response = await ai.models.generateContent({
-        model: "gemini-3.5-flash",
-        contents: [{
-          role: "user",
-          parts: [{
-            text: `คุณคือกรรมการผู้ตรวจสอบ / AI ผู้ช่วยสอนนิติบัญชีสุดอัจฉริยะของศาสตราจารย์ ALec
+      const promptText = isEp2
+        ? `คุณคือกรรมการผู้ตรวจสอบ / AI ผู้ช่วยสอนนิติบัญชีสุดอัจฉริยะของศาสตราจารย์ ALec
+จงตรวจคำอธิบายของนักศึกษาคนนี้ในคดี Ep.2 "เงาร้ายใต้ตัวเลข" (Ghost Payroll Collusion):
+
+องค์ประกอบของคดีรหัสนี้:
+- พิกัดสำคัญ: เซลล์ G10 (สูตร XLOOKUP สืบค้น HR_Master พบสถานะ GHOST_SUSPECT เพราะชื่อบัญชี ดนัย ไม่มีรายชื่อในประวัติกำลังพลจริง)
+- พิกัดสำคัญ: เซลล์ H10 (สูตร Crossmatch พิกัดบัญชีเงินโอน F10 ไปตรงกับ M.N. Accounting Solution ซึ่งเป็นคู่ค้าจัดซื้อคุณนายซัพพลายเออร์)
+- พิกัดสำคัญ: เซลล์ I10 (รวมสูตร AND ปรากฏ FRAUD_WARNING ชี้ชัดทุจริตร่วมกัน)
+- ความร่วมมือ: J.Jin (ฝ่ายจัดซื้อ สร้างกำลังพลผี ดนัย และพ่วงเลขบัญชีคู่ค้า) ร่วมมือกับ K.Min (หัวหน้าบัญชี ปรับอนุมัติรหัส payroll)
+- บทบาท ดนัย จัง (D.Jung): บัญชีม้า ได้ฝ่าฝืนกฎหมายฐานยินยอมเปิดให้ใช้เป้ารายได้ไซเบอร์ ซึ่งมีความผิดสนับสนุนการฟอกเงินตามมาตรากฎหมายไซเบอร์ไทย
+
+คำอธิบายบัญชีภาษาไทยของนักศึกษา:
+"${writtenReport}"
+
+กรุณาให้คะแนนข้อเขียนวิเคราะห์นี้เต็ม 30 คะแนน โดยคุณต้องตรวจจับคีย์เวิร์ดเด่นๆ XLOOKUP, G10, H10, บัญชีม้า, J.Jin, K.Min และระบุบทลงโทษบัญชีม้า
+โปรดประเมินอย่างเที่ยงธรรม แล้วตอบกลับในรูปแบบ JSON เสมอ:
+{
+  "score": (ใส่คะแนนที่เป็นตัวเลขระหว่าง 0 ถึง 30),
+  "review": "บทวิจารณ์คำตอบความยาวประมาณ 2-3 ประโยคในภาษาไทยกระชับและหรูหรา"
+}`
+        : `คุณคือกรรมการผู้ตรวจสอบ / AI ผู้ช่วยสอนนิติบัญชีสุดอัจฉริยะของศาสตราจารย์ ALec
 จงตรวจคำอธิบายของนักศึกษาคนนี้เกี่ยวกับข้อบกพร่องของสูตร Excel และการละเว้นตาราง:
 
 โจทย์เฉพาะของรหัสนี้:
@@ -410,7 +528,14 @@ app.post("/api/grade", async (req, res) => {
 {
   "score": (ใส่คะแนนที่เป็นตัวเลขระหว่าง 0 ถึง 30),
   "review": "บทวิจารณ์คำตอบความยาวประมาณ 2-3 ประโยคในภาษาไทยกระชับและสุภาพ"
-}`
+}`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3.5-flash",
+        contents: [{
+          role: "user",
+          parts: [{
+            text: promptText
           }]
         }],
         config: {
@@ -430,19 +555,37 @@ app.post("/api/grade", async (req, res) => {
     } catch (apiError) {
       // Quietly use dual deterministic regex matcher fallback to protect system from 403 API key issues
       const textLower = String(writtenReport).toLowerCase();
-      const matchCell = textLower.includes(correctCellKeyword.toLowerCase());
-      const matchG16 = textLower.includes("g16") || textLower.includes("สูตร") || textLower.includes("sum");
-      const matchKeywords = ["โอน", "บวก", "ข้าม", "รวม", "เลี่ยง", "mismatch", "m.n."].filter(kw => textLower.includes(kw)).length;
+      if (isEp2) {
+        const matchG10 = textLower.includes("g10") || textLower.includes("ghost") || textLower.includes("พนักงานผี");
+        const matchH10 = textLower.includes("h10") || textLower.includes("คู่ค้า") || textLower.includes("vendor") || textLower.includes("m.n.");
+        const matchMule = textLower.includes("ม้า") || textLower.includes("ดนัย") || textLower.includes("ผิด") || textLower.includes("ฟอกเงิน");
+        const matchKeywords = ["จัดซื้อ", "บัญชี", "ร่วมมือ", "xlookup", "สูตร", "collusion"].filter(kw => textLower.includes(kw)).length;
 
-      if (matchCell && matchG16) {
-        formulaScore = 25 + Math.min(5, matchKeywords);
-        formulaComment = `ดีเยี่ยม! ยืนยันพิกัดเซลล์ ${correctCellKeyword} และพฤติกรรมสูตรข้ามยอดสะสมเงินสดที่ช่อง G16 ได้ครบถ้วนอย่างถูกต้องชัดเจนเชิงนิติวิทยาศาสตร์`;
-      } else if (matchCell || matchG16) {
-        formulaScore = 12 + Math.min(8, matchKeywords);
-        formulaComment = `ค่อนข้างสมบูรณ์! ตรวจพบเบาะแสสำคัญบางส่วนเช่นเซลล์ ${correctCellKeyword} หรือช่องสูตร แต่ควรเขียนเชื่อมต่อพฤติการณ์สอดรับกันให้ชัดเจนในสมุดกระดาษทำการ`;
+        if (matchG10 && matchH10 && matchMule) {
+          formulaScore = 25 + Math.min(5, matchKeywords);
+          formulaComment = `ดีเยี่ยม! คุณวิเคราะห์ความเชื่อมโยงของผลตรวจสอบสูตร G10 (Ghost) และ H10 (Vendor Match) สำหรับพนักงานผีสวมสิทธิ์ ดนัย จัง รวมถึงระบุความผิดบัญชีม้าได้ครอบคลุมประเด็นนิติธรรมบัญชี`;
+        } else if (matchG10 || matchH10 || matchMule) {
+          formulaScore = 12 + Math.min(8, matchKeywords);
+          formulaComment = `ค่อนข้างชัดเจน! ตรวจพบเบาะแสสำคัญเกี่ยวกับการวางสูตร หรือความร่วมมือของจำเลย แนะนำให้อธิบายความผิดตัวบททางกฎหมายของบัญชีม้า ดนัย จัง และซัพพลายเออร์ ให้ชัดแจ้งยิ่งขึ้น`;
+        } else {
+          formulaScore = Math.min(10, matchKeywords * 2);
+          formulaComment = `ต้องปรับปรุงเพิ่มเติม! รายงานยังขาดข้อวิเคราะห์ที่แสดงความเข้าใจสูตร XLOOKUP เด่น (G10/H10) และประเด็นเรื่องความน่าสงสัยของการโอนพนักงานผีผ่านช่องทางบัญชีม้า`;
+        }
       } else {
-        formulaScore = Math.min(10, matchKeywords * 2);
-        formulaComment = `ต้องปรับปรุงเพิ่มเติม! นักศึกษายังวิเคราะห์ปมตารางไม่พบ พิกัดที่แท้จริงคือ ${correctCellKeyword} ที่แอบแก้ไขสูตรหลบเลี่ยงยอดเงินในเซลล์ตรวจสอบหลัก G16`;
+        const matchCell = textLower.includes(correctCellKeyword.toLowerCase());
+        const matchG16 = textLower.includes("g16") || textLower.includes("สูตร") || textLower.includes("sum");
+        const matchKeywords = ["โอน", "บวก", "ข้าม", "รวม", "เลี่ยง", "mismatch", "m.n."].filter(kw => textLower.includes(kw)).length;
+
+        if (matchCell && matchG16) {
+          formulaScore = 25 + Math.min(5, matchKeywords);
+          formulaComment = `ดีเยี่ยม! ยืนยันพิกัดเซลล์ ${correctCellKeyword} และพฤติกรรมสูตรข้ามยอดสะสมเงินสดที่ช่อง G16 ได้ครบถ้วนอย่างถูกต้องชัดเจนเชิงนิติวิทยาศาสตร์`;
+        } else if (matchCell || matchG16) {
+          formulaScore = 12 + Math.min(8, matchKeywords);
+          formulaComment = `ค่อนข้างสมบูรณ์! ตรวจพบเบาะแสสำคัญบางส่วนเช่นเซลล์ ${correctCellKeyword} หรือช่องสูตร แต่ควรเขียนเชื่อมต่อพฤติการณ์สอดรับกันให้ชัดเจนในสมุดกระดาษทำการ`;
+        } else {
+          formulaScore = Math.min(10, matchKeywords * 2);
+          formulaComment = `ต้องปรับปรุงเพิ่มเติม! นักศึกษายังวิเคราะห์ปมตารางไม่พบ พิกัดที่แท้จริงคือ ${correctCellKeyword} ที่แอบแก้ไขสูตรหลบเลี่ยงยอดเงินในเซลล์ตรวจสอบหลัก G16`;
+        }
       }
     }
 
@@ -546,6 +689,51 @@ app.post("/api/register-login", (req, res) => {
       saveSubmissions(list);
     }
     res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Retrieve completion status of all episodes for a student to enforce sequential play
+app.get("/api/student/episodes-status", (req, res) => {
+  try {
+    const { studentId } = req.query;
+    if (!studentId) {
+      return res.status(400).json({ error: "กรุณาระบุรหัสนักศึกษา" });
+    }
+    const baseId = String(studentId).trim();
+    const list = readSubmissions();
+    
+    // Check if an episode is completed
+    const isCompleted = (epId: string) => {
+      return list.some((sub: any) => 
+        sub.studentId === epId && 
+        !sub.isPlaceholder && 
+        sub.score !== null && 
+        sub.score !== undefined
+      );
+    };
+
+    const ep1Completed = isCompleted(baseId) || isCompleted(`${baseId}-ep1`);
+    const ep2Completed = isCompleted(`${baseId}-ep2`);
+    const ep3Completed = isCompleted(`${baseId}-ep3`);
+    const ep4Completed = isCompleted(`${baseId}-ep4`);
+    const ep5Completed = isCompleted(`${baseId}-ep5`);
+
+    res.json({
+      1: true,
+      2: ep1Completed,
+      3: ep1Completed && ep2Completed,
+      4: ep1Completed && ep2Completed && ep3Completed,
+      5: ep1Completed && ep2Completed && ep3Completed && ep4Completed,
+      completed: {
+        1: ep1Completed,
+        2: ep2Completed,
+        3: ep3Completed,
+        4: ep4Completed,
+        5: ep5Completed
+      }
+    });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

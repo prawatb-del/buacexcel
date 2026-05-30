@@ -7,9 +7,10 @@ export interface ChatMessage {
   role: "user" | "model";
   text: string;
   timestamp: string;
+  sender?: "KM" | "JJ" | "DET";
 }
 
-export type ActiveTab = "investigation" | "sheets" | "casefile" | "instructions";
+export type ActiveTab = "instructions" | "sheets" | "bank" | "employee" | "casefile";
 
 export type SheetName = "ledger" | "bank" | "employee";
 
